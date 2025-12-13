@@ -1,5 +1,275 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T05:48:20.385717+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T05:48:21.441307+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T06:25:09.216059+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T06:25:09.669542+00:00</updated><content type="html"><![CDATA[<blockquote>
+<p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
+</blockquote>
+<blockquote>
+</blockquote>
+<blockquote>
+<p><strong>大模型，究竟是“会说话的百科全书”，还是“能动手做事的系统”？</strong></p>
+</blockquote>
+<p>Function Calling 和 MCP（Model Context Protocol），正是围绕这个问题展开的两代关键答案。</p>
+<hr />
+<h2><strong>一、没有工具的大模型，本质上是“被困在房间里的人”</strong></h2>
+<p>早期的大语言模型，即便知识极其丰富，本质上仍然是一个<strong>封闭系统</strong>：</p>
+<ul>
+<li>无法访问实时数据</li>
+<li>不能查询数据库</li>
+<li>不能操作文件系统</li>
+<li>不能调用外部 API</li>
+</ul>
+<p>它只能基于<strong>训练时学到的静态知识</strong>进行回答。</p>
+<p>这在“解释概念”“生成文本”时问题不大，但一旦进入真实应用场景，就会立刻失效：</p>
+<ul>
+<li>查最新数据</li>
+<li>进行精确计算</li>
+<li>与业务系统交互</li>
+<li>执行确定性任务</li>
+</ul>
+<p><strong>模型需要“手”和“工具”。</strong></p>
+<hr />
+<h2><strong>二、Function Calling：第一次让模型“会用工具”</strong></h2>
+<h3><strong>1. Function Calling 是什么？</strong></h3>
+<p>Function Calling 是 OpenAI 在 2023 年提出的一种能力扩展机制，其核心目标只有一个：</p>
+<blockquote>
+<p><strong>让模型在推理过程中，决定是否调用外部函数，并生成结构化参数。</strong></p>
+</blockquote>
+<p>需要特别强调的是：</p>
+<ul>
+<li>模型 <strong>不执行函数</strong></li>
+<li>模型 <strong>只输出调用意图与参数</strong></li>
+<li>真正的执行发生在宿主程序（Backend / Server）中</li>
+</ul>
+<p>换句话说，模型负责“想”，系统负责“做”。</p>
+<hr />
+<h3><strong>2. 典型工作流程</strong></h3>
+<pre><code>用户输入
+↓
+LLM 推理
+↓
+生成 function_name + arguments（JSON）
+↓
+宿主系统执行函数
+↓
+结果返回给 LLM
+↓
+最终自然语言回答
+</code></pre>
+<p>示例（简化）：</p>
+<pre><code>{
+  &quot;name&quot;: &quot;get_weather&quot;,
+  &quot;arguments&quot;: {
+    &quot;city&quot;: &quot;北京&quot;,
+    &quot;date&quot;: &quot;今天&quot;
+  }
+}
+</code></pre>
+<hr />
+<h3><strong>3. 为什么说 Function Calling 是一次重要跃迁？</strong></h3>
+<p>因为它第一次让大模型具备了：</p>
+<ul>
+<li>与真实系统交互的能力</li>
+<li>执行确定性任务的可能性</li>
+<li>构建 Agent 的基础动作接口</li>
+</ul>
+<p>我们今天在 Coze、Dify 等低代码 Agent 平台中看到的各种“插件”，本质上都是 <strong>Function Calling 的工程封装</strong>。</p>
+<hr />
+<h2><strong>三、Function Calling 的工程代价与瓶颈</strong></h2>
+<p>Function Calling 虽然重要，但它从一开始就<strong>不是为大规模系统设计的标准</strong>。</p>
+<h3><strong>1. 模型强依赖</strong></h3>
+<ul>
+<li>模型必须 <strong>原生支持 Function Calling</strong></li>
+<li>甚至需要 <strong>专门的 Function Call 微调</strong></li>
+</ul>
+<p>例如在 ShareGPT 风格的数据集中，会出现专门的结构字段：</p>
+<pre><code>{
+  &quot;from&quot;: &quot;function_call&quot;,
+  &quot;value&quot;: &quot;工具参数&quot;
+}
+</code></pre>
+<p>这意味着：</p>
+<blockquote>
+<p><strong>不是所有模型天然就“会用工具”。</strong></p>
+</blockquote>
+<hr />
+<h3><strong>2. 协议碎片化问题</strong></h3>
+<p>不同模型、不同厂商的 Function Calling：</p>
+<ul>
+<li>Schema 不统一</li>
+<li>调用格式不同</li>
+<li>错误处理方式各异</li>
+</ul>
+<p>工程上，几乎不可避免地需要为每个模型维护一套适配层。</p>
+<hr />
+<h3><strong>3. 能力边界清晰但狭窄</strong></h3>
+<p>Function Calling 更像是：</p>
+<ul>
+<li>单次</li>
+<li>无状态</li>
+<li>函数级别</li>
+</ul>
+<p>它非常适合：</p>
+<ul>
+<li>查天气</li>
+<li>查订单</li>
+<li>简单计算</li>
+</ul>
+<p>但一旦进入：</p>
+<ul>
+<li>多工具协作</li>
+<li>状态管理</li>
+<li>复杂资源访问</li>
+</ul>
+<p>就会迅速变得笨重。</p>
+<hr />
+<h2><strong>四、MCP 出现的背景：Function Calling 不够用了</strong></h2>
+<h3><strong>1. MCP 是什么？</strong></h3>
+<p><strong>MCP（Model Context Protocol）</strong> 是 Anthropic 提出的一种开放标准协议，其目标不是“再发明一种函数调用”，而是：</p>
+<blockquote>
+<p><strong>为大模型与外部世界之间，建立一个标准化、可控、可扩展的通信层。</strong></p>
+</blockquote>
+<p>一句话定义：</p>
+<blockquote>
+<p>MCP 是模型接入工具、数据和能力的“通用协议层”。</p>
+</blockquote>
+<hr />
+<h3><strong>2. MCP 要解决的核心问题</strong></h3>
+<p>Function Calling 无法优雅解决的问题包括：</p>
+<ul>
+<li>工具数量爆炸</li>
+<li>数据源类型复杂（DB / 文件 / API / Git）</li>
+<li>不同语言、不同部署环境</li>
+<li>权限与安全边界不清晰</li>
+<li>状态与上下文难以管理</li>
+</ul>
+<p>MCP 的目标非常明确：</p>
+<blockquote>
+<p><strong>把“外部能力”系统性地包装成模型可理解、可控制的上下文接口。</strong></p>
+</blockquote>
+<hr />
+<h2><strong>五、MCP 的标准架构（关键）</strong></h2>
+<p>MCP 采用典型的 <strong>Client–Server 架构</strong>：</p>
+<pre><code>LLM（Client）
+   ↕ MCP Protocol
+MCP Server
+   ├─ Tools
+   ├─ Resources
+   └─ Prompts
+</code></pre>
+<h3><strong>MCP Server 提供三类能力</strong></h3>
+<h4><strong>1️⃣ Tools（可执行能力）</strong></h4>
+<ul>
+<li>标准化工具接口</li>
+<li>明确输入 / 输出 schema</li>
+<li>受控权限</li>
+</ul>
+<h4><strong>2️⃣ Resources（数据资源）</strong></h4>
+<ul>
+<li>文件系统</li>
+<li>数据库</li>
+<li>API 结果</li>
+<li>Git 仓库</li>
+<li>本地或远程状态</li>
+</ul>
+<p>模型可以“读资源”，而不是每次都靠 prompt 注入。</p>
+<h4><strong>3️⃣ Prompts（上下文模板）</strong></h4>
+<ul>
+<li>系统级规范</li>
+<li>业务约束</li>
+<li>任务模板</li>
+</ul>
+<hr />
+<h2><strong>六、Function Calling vs MCP：本质对比</strong></h2>
+<table>
+<thead>
+<tr>
+<th><strong>维度</strong></th>
+<th><strong>Function Calling</strong></th>
+<th><strong>MCP</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>抽象层级</td>
+<td>函数级</td>
+<td>系统级</td>
+</tr>
+<tr>
+<td>本质</td>
+<td>模型生成调用参数</td>
+<td>模型接入外部世界的协议</td>
+</tr>
+<tr>
+<td>状态管理</td>
+<td>无</td>
+<td>支持（Server 维护）</td>
+</tr>
+<tr>
+<td>工具规模</td>
+<td>少量</td>
+<td>大规模</td>
+</tr>
+<tr>
+<td>协议标准</td>
+<td>私有实现</td>
+<td>开放标准</td>
+</tr>
+<tr>
+<td>扩展性</td>
+<td>差</td>
+<td>极强</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>Demo / 小工具</td>
+<td>Agent / 企业系统</td>
+</tr>
+</tbody></table><hr />
+<h2><strong>七、一个非常直观的类比</strong></h2>
+<ul>
+<li>
+<p><strong>Function Calling</strong>：</p>
+<p>像是你打电话让秘书临时帮你办一件事</p>
+</li>
+<li>
+<p><strong>MCP</strong>：</p>
+<p>像是你被授予了一整套办公系统的受控访问权限</p>
+</li>
+</ul>
+<p>前者是“临时动作”，后者是“长期协作”。</p>
+<hr />
+<h2><strong>八、工程选型建议（非常重要）</strong></h2>
+<h3><strong>什么时候用 Function Calling？</strong></h3>
+<ul>
+<li>工具数量少（&lt;10）</li>
+<li>功能简单</li>
+<li>单体应用</li>
+<li>快速验证</li>
+</ul>
+<p>👉 <strong>90% 的聊天机器人 Demo</strong></p>
+<hr />
+<h3><strong>什么时候必须用 MCP？</strong></h3>
+<ul>
+<li>多工具、多数据源</li>
+<li>AI Agent / Copilot</li>
+<li>企业级系统</li>
+<li>本地文件 / 内网服务</li>
+<li>强安全与可扩展要求</li>
+</ul>
+<p>👉 <strong>真正可落地的 Agent 系统</strong></p>
+<hr />
+<h2><strong>九、总结一句话</strong></h2>
+<blockquote>
+<p>Function Calling 解决的是“模型怎么调用一个函数”，</p>
+</blockquote>
+<blockquote>
+<p>MCP 解决的是“模型如何安全、可扩展地接入真实世界”。</p>
+</blockquote>
+<p>在 Agent 体系中：</p>
+<ul>
+<li>Function Calling 更像是“动作接口”</li>
+<li>MCP 更接近“模型的操作系统层”</li>
+</ul>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T06:25:09.893516+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
