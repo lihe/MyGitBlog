@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T06:28:24.022662+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T06:28:25.547505+00:00</updated><content type="html"><![CDATA[<blockquote>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T06:37:05.289176+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T06:37:05.616771+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -269,7 +269,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T06:28:26.455799+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T06:37:05.807290+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
