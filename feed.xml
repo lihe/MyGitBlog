@@ -1,5 +1,204 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T06:58:07.624756+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-13T06:58:07.995932+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T07:31:08.507639+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-13T07:31:08.818826+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+<p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
+<p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
+<p>这篇文章总结一条完整逻辑链：</p>
+<ul>
+<li>为什么从 PPO 走向 GRPO</li>
+<li>GRPO 的目标函数到底在干嘛</li>
+<li>结果监督 vs 过程监督的 GRPO</li>
+<li>迭代 RL（reward model 跟不上怎么办）</li>
+<li>DeepSeekMath 的一个很“硬核”的发现：<strong>RL 为什么有效</strong></li>
+</ul>
+<hr />
+<h2><strong>1. 背景：LLM 对齐训练的常见路线</strong></h2>
+<p>在大模型微调里，一个典型流程是：</p>
+<p><strong>预训练 → SFT（监督微调）→ RL（强化学习对齐）</strong></p>
+<p>SFT 让模型“会答题”，但 RL 往往能让模型“更稳定地答对题”。尤其在数学/代码/逻辑推理这种任务中，RL 的提升往往更明显。</p>
+<p>问题是：传统 RL 对齐里最常用的 PPO，在 LLM 语境下有几处天然痛点。</p>
+<hr />
+<h2><strong>2. 从 PPO 到 GRPO：PPO 在大模型上的痛点是什么？</strong></h2>
+<p>PPO（Proximal Policy Optimization）被广泛用在 RLHF/RLAIF 里。它的核心是最大化一个“带截断的替代目标”，并借助优势函数 A 做策略更新。</p>
+<p>在 LLM 场景，PPO 常见训练形式还会加入 <strong>KL 约束</strong>，防止策略偏离参考模型（通常是 SFT 模型）太多。</p>
+<h3><strong>PPO 的关键问题</strong></h3>
+<p><strong>(1) 必须训练一个 Value/Critic（值函数）</strong></p>
+<p>值函数通常规模接近策略模型，带来显著的内存与算力开销。更关键的是：critic 训练不稳定、和 policy 不匹配时，训练容易“崩”。</p>
+<p><strong>(2) 工程复杂度高</strong></p>
+<p>Actor + Critic + GAE + KL 控制 + clip，各组件耦合，调参成本高。</p>
+<p><strong>(3) LLM 的奖励结构让 critic 更难学</strong></p>
+<p>很多对齐设置里，奖励模型只在<strong>最后一个 token</strong>（答案结束）给一个整体分数。</p>
+<p>这使得“token 级价值估计”在训练上更复杂，critic 的学习信号更弱、更不稳定。</p>
+<p>于是一个很现实的想法出现了：</p>
+<blockquote>
+<p>很多时候我们并不需要“绝对奖励值”，只需要在同一个 prompt 下<strong>哪条回答更好</strong>。</p>
+</blockquote>
+<p>这就是 GRPO 的出发点。</p>
+<hr />
+<h2><strong>3. GRPO 的核心思想：用“组内相对优势”替代 Critic</strong></h2>
+<h3><strong>3.1 一句话定义</strong></h3>
+<p><strong>GRPO 是一种不需要 Critic 的强化学习对齐方法</strong>：</p>
+<p>对同一 prompt 采样一组回答，用奖励模型打分，然后用<strong>组内相对差异</strong>构造优势，直接更新策略。</p>
+<p>关键词：<strong>group-relative / no critic / 替代 PPO / 更稳定更省</strong></p>
+<h3><strong>3.2 GRPO 的训练流程</strong></h3>
+<p>给定一个问题（prompt）q，从旧策略采样一组输出（group）：</p>
+<p>${o_1, o_2, \dots, o_G} \sim \pi_{\theta_{\text{old}}}(\cdot|q)$</p>
+<p>用奖励模型（或规则验证器）对每个输出打分：</p>
+<p>$r_i = R(q, o_i)$</p>
+<p>接下来是 GRPO 的灵魂：构造<strong>组内相对优势</strong>（baseline 不再来自 value model，而来自组平均）：</p>
+<p>一种常见形式是：</p>
+<p>$A_i = r_i - \frac{1}{G}\sum_{j=1}^{G} r_j$</p>
+<p>很多实现里还会做标准化（你材料里也提到）：</p>
+<p>$\hat r_i = \frac{r_i - \text{mean}(r)}{\text{std}(r)}$</p>
+<p>然后把优势信号用于策略更新，形式上类似 PPO 的“比率 + clip”，但<strong>不需要 Critic/GAE</strong>。</p>
+<hr />
+<h2><strong>4. GRPO 的目标函数：它到底优化了什么？</strong></h2>
+<p>GRPO 用如下目标对策略进行优化（直觉上是 PPO 风格的 surrogate objective + KL 正则）：</p>
+<ul>
+<li>PPO 里常见做法是把 KL 惩罚放进 reward 里（token-level reward shaping）</li>
+<li>GRPO 的关键区别是：<strong>把 KL 作为损失函数里的正则项</strong>，而不是塞进 reward</li>
+</ul>
+<p>直觉很重要：</p>
+<blockquote>
+<p>PPO：奖励里加 KL 惩罚（reward shaping）</p>
+</blockquote>
+<blockquote>
+<p>GRPO：损失里加 KL 正则（regularization）</p>
+</blockquote>
+<p>这让训练更干净，工程上更容易控制。</p>
+<p>此外，GRPO 还使用一个无偏估计来计算 KL 散度，并强调该值为正，用于稳定训练。</p>
+<hr />
+<h2><strong>5. 结果监督 GRPO：只有“最终答案分”也能训起来</strong></h2>
+<p>把 RL 分成了“结果监督”和“过程监督”，这是推理模型训练里非常关键的区分。</p>
+<h3><strong>5.1 结果监督（Outcome Supervision）</strong></h3>
+<p>对于同一个问题 q，采样 G 个输出 $o_i$。</p>
+<p>奖励模型给每个完整输出一个分数 $r_i$，并进行组内标准化：</p>
+<p>$\hat r_i = \frac{r_i - \text{mean}(r)}{\text{std}(r)}$</p>
+<p>然后把这个标准化奖励作为该输出<strong>所有 token 的优势</strong>：</p>
+<p>$\hat A_{i,t} = \hat r_i$</p>
+<p>也就是说：</p>
+<p><strong>整段输出的每个 token，都共享同一个优势信号。</strong></p>
+<p>这在工程上很“粗”，但非常省事，且在很多任务上确实有效。</p>
+<hr />
+<h2><strong>6. 过程监督 GRPO：推理任务为什么需要 step-level reward？</strong></h2>
+<p>结果监督的问题也很明显：</p>
+<p>对于复杂数学推理，仅在最终答案给奖励，信号太稀疏。</p>
+<h3><strong>6.1 过程监督（Process Supervision）</strong></h3>
+<p>过程奖励模型会在推理步骤的结束 token（例如每个 step 的结束标记）给分：</p>
+<p>对第 i 个输出，共有 $K_i$ 个步骤，步骤结束位置索引为 $\text{index}(j)$，得到奖励序列：</p>
+<p>${r^i_{\text{index}(1)}, \dots, r^i_{\text{index}(K_i)}}$</p>
+<p>同样做 mean/std 标准化得到 $\tilde r$。</p>
+<p>然后每个 token 的优势定义为<strong>从当前 token 往后的 step reward 之和</strong>：</p>
+<p>$\hat A_{i,t} = \sum_{\text{index}(j)\ge t} \tilde r^i_{\text{index}(j)}$</p>
+<p>直觉上：</p>
+<p>token 越早，能“背负”的后续推理步骤越多；</p>
+<p>这使得过程监督能更有效地塑形推理轨迹，而不只是塑形最终答案。</p>
+<hr />
+<h2><strong>7. 迭代强化学习：reward model 跟不上 policy 怎么办？</strong></h2>
+<p>一个非常现实的问题：</p>
+<blockquote>
+<p>随着策略模型不断变强，旧的奖励模型可能无法有效监督新的策略分布。</p>
+</blockquote>
+<p>于是 DeepSeekMath 引入了<strong>迭代 RL + GRPO</strong>：</p>
+<ul>
+<li>每次迭代，用当前策略生成数据</li>
+<li>构建新的奖励模型训练集</li>
+<li>用 replay 机制持续训练奖励模型（历史数据占比约 10%）</li>
+</ul>
+<p>这本质是在做一件事：</p>
+<blockquote>
+<p>让 RM 跟上 policy 的分布漂移，否则 RL 只会“优化一个过时的打分器”。</p>
+</blockquote>
+<p>这也是很多 RLHF 工程里不可避免的循环：<strong>policy 变强 → 分布变了 → RM 失效 → 必须续训 RM</strong>。</p>
+<hr />
+<h2><strong>8. DeepSeekMath 的一个关键发现：RL 为什么有效？</strong></h2>
+<p>DeepSeekMath 对比了 SFT 与 RL 后模型的 <strong>Pass@K</strong> 与 <strong>Maj@K</strong>：</p>
+<ul>
+<li>RL <strong>显著提升 Maj@K</strong></li>
+<li>RL <strong>没有提升 Pass@K</strong></li>
+</ul>
+<p>这说明：</p>
+<blockquote>
+<p>RL 的主要作用不是把“TopK 里的上限”推高（能力上限不变），</p>
+</blockquote>
+<blockquote>
+<p>而是让输出分布更稳健，让正确答案更容易成为“多数/常见输出”。</p>
+</blockquote>
+<p>一句话翻译成大白话：</p>
+<p><strong>RL 更像是在“调分布”，让你更常答对，而不是让你会更多。</strong></p>
+<p>这也解释了为什么推理模型的 RL 往往让表现更“稳”、更“像会推理”。</p>
+<hr />
+<h2><strong>9. 统一范式：SFT / DPO / PPO / GRPO 本质上在优化什么？</strong></h2>
+<p>所有方法的梯度可以写成一个统一形式，包含三个关键组成部分：</p>
+<ol>
+<li>数据源 D（训练数据从哪来）</li>
+<li>奖励函数（训练信号来源，如 RM/verifier）</li>
+<li>算法 A（如何把数据与奖励变成梯度系数）</li>
+</ol>
+<p>在这个范式下：</p>
+<ul>
+<li><strong>SFT</strong>：用人类挑选的数据监督学习</li>
+<li><strong>RFT</strong>：对模型采样结果做过滤再监督</li>
+<li><strong>DPO</strong>：对成对偏好做离线优化（偏监督）</li>
+<li><strong>Online RFT</strong>：用实时 policy 采样 + 过滤</li>
+<li><strong>PPO/GRPO</strong>：用实时 policy 采样 + 强化学习更新</li>
+</ul>
+<blockquote>
+<p>方法很多，但核心变量其实就三个：数据从哪来、奖励怎么给、算法怎么用奖励更新模型。</p>
+</blockquote>
+<hr />
+<h2><strong>10. GRPO vs PPO vs DPO：面试最容易问的三角对比</strong></h2>
+<h3><strong>10.1 GRPO vs PPO</strong></h3>
+<ul>
+<li>PPO 的优势依赖 Critic / GAE</li>
+<li>GRPO 用组内均值当 baseline，直接构造相对优势</li>
+<li>GRPO 工程更简单、成本更低、稳定性更依赖 reward 排序质量</li>
+</ul>
+<p>一句话：</p>
+<p><strong>PPO 学“我比期望好多少”，GRPO 学“我比同组其他答案好多少”。</strong></p>
+<h3><strong>10.2 GRPO vs DPO</strong></h3>
+<ul>
+<li>DPO：离线偏好数据（chosen/rejected），偏监督学习</li>
+<li>GRPO：在线采样 + reward 打分，是真 RL（但简化了 critic）</li>
+</ul>
+<p>一句话：</p>
+<p><strong>DPO 用人类给的对比对；GRPO 用模型自己采样的一组答案做对比。</strong></p>
+<hr />
+<h2><strong>11. GRPO 特别适合哪些任务？</strong></h2>
+<p>推理模型偏爱 GRPO 的原因，是它天然适合“可自动打分”的任务：</p>
+<ul>
+<li>数学（verifier 判对错）</li>
+<li>代码（单测/编译/静态分析）</li>
+<li>逻辑推理（规则检查）</li>
+<li>任何能构建稳定 reward 的任务</li>
+</ul>
+<p>当 reward 足够可靠时，组内排序会非常稳定，GRPO 的优势就会被放大。</p>
+<hr />
+<h2><strong>12. 局限与工程注意点</strong></h2>
+<p>GRPO 也不是银弹，也有风险：</p>
+<ul>
+<li>需要同 prompt 多采样（group size G）→ 成本来自采样</li>
+<li>group 太小 → 方差大，排序不稳定</li>
+<li>reward 噪声大 → 相对优势抖动，训练不稳</li>
+</ul>
+<p>工程上通常会做：</p>
+<ul>
+<li>合理的 G（group size）选择</li>
+<li>KL 正则强度控制</li>
+<li>clip 稳定训练</li>
+<li>更可靠的 verifier / PRM 构建与迭代</li>
+</ul>
+<hr />
+<h1><strong>总结：为什么 DeepSeek-R1/推理模型会偏爱 GRPO？</strong></h1>
+<blockquote>
+<p><strong>GRPO 通过“同 prompt 组内比较”构造相对优势，去掉 critic，极大降低 RL 对齐的工程复杂度与训练成本，并在可验证推理任务上更稳定、更有效。</strong></p>
+</blockquote>
+<blockquote>
+<p>DeepSeekMath 的证据表明，RL 的提升往往来自“让正确答案更常出现”（Maj@K ↑），而不是把能力上限推高（Pass@K 不变）。</p>
+</blockquote>
+<blockquote>
+<p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
+</blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-13T07:31:08.968567+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -388,7 +587,7 @@
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T06:58:08.175921+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T07:31:09.149844+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -658,7 +857,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T06:58:08.363855+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T07:31:09.320353+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
