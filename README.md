@@ -13,7 +13,7 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
-- [Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络](https://github.com/lihe/MyGitBlog/issues/6)--2025-12-13
+- [Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络](https://github.com/lihe/MyGitBlog/issues/6)--2025-12-14
 - [P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析](https://github.com/lihe/MyGitBlog/issues/5)--2025-12-13
 - [GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？](https://github.com/lihe/MyGitBlog/issues/4)--2025-12-13
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
@@ -27,6 +27,6 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 ## RAG
 - [从 RAG 到 GraphRAG，再到 LightRAG](https://github.com/lihe/MyGitBlog/issues/1)--2025-12-13
 ## Transformer
-- [Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络](https://github.com/lihe/MyGitBlog/issues/6)--2025-12-13
+- [Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络](https://github.com/lihe/MyGitBlog/issues/6)--2025-12-14
 ## 微调
 - [P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析](https://github.com/lihe/MyGitBlog/issues/5)--2025-12-13

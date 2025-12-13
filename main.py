@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+from datetime import timezone, timedelta
 
 import markdown
 from feedgen.feed import FeedGenerator
@@ -87,7 +88,10 @@ def _valid_xml_char_ordinal(c):
 
 
 def format_time(time):
-    return str(time)[:10]
+    # GitHub API 返回的是 UTC 时间，转换为中国时区 (UTC+8)
+    china_tz = timezone(timedelta(hours=8))
+    local_time = time.replace(tzinfo=timezone.utc).astimezone(china_tz)
+    return str(local_time)[:10]
 
 
 def login(token):
