@@ -46,7 +46,11 @@ jobs:
       - name: Generate new md
         run: |
           source venv/bin/activate
-          python main.py ${{ secrets.G_T}} ${{ github.repository }} --issue_number '${{ github.event.issue.number }}'
+          if [ "${{ github.event_name }}" == "push" ]; then
+            python main.py ${{ secrets.G_T }} ${{ github.repository }}
+          else
+            python main.py ${{ secrets.G_T }} ${{ github.repository }} --issue_number ${{ github.event.issue.number }}
+          fi
        
         # 检查 Git 状态
       - name: Check Git Status
