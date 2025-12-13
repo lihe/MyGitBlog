@@ -1,5 +1,81 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T11:34:23.084253+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-13T11:34:23.511823+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T16:21:19.095941+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-13T16:21:19.466684+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+<img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
+<hr />
+<h2><strong>注意力与 FFN 的职责分工</strong></h2>
+<p>从信息流的角度来看，Transformer 的每一层可以拆分为两类互补的计算过程：</p>
+<ul>
+<li>
+<p><strong>自注意力机制</strong></p>
+<p>负责在不同 token 之间建立依赖关系，对上下文信息进行加权聚合，解决“从哪里获取信息”的问题。</p>
+</li>
+<li>
+<p><strong>前馈网络（FFN）</strong></p>
+<p>负责在单个 token 内部对已聚合的信息进行非线性变换和特征重组，解决“如何理解和加工信息”的问题。</p>
+</li>
+</ul>
+<p>两者形成了清晰的分工：注意力负责信息路由，FFN 负责信息加工。</p>
+<hr />
+<h2><strong>FFN 的标准结构</strong></h2>
+<p>在经典 Transformer 中，FFN 是一个逐位置（position-wise）的两层全连接网络，其基本形式为：</p>
+<p>$\text{FFN}(x) = W_2 , \sigma(W_1 x + b_1) + b_2$</p>
+<p>其中：</p>
+<ul>
+<li>$x \in \mathbb{R}^{d_{\text{model}}}$ 是单个 token 的表示；</li>
+<li>$W_1$ 将特征维度从 $d_{\text{model}} $升维到 $d_{\text{ff}}$；</li>
+<li>$\sigma$ 是非线性激活函数（ReLU、GELU、SwiGLU 等）；</li>
+<li>$W_2$ 再将特征映射回模型维度。</li>
+</ul>
+<p>这一网络对序列中每个位置独立作用，参数在所有位置共享，不引入 token 间的交互。</p>
+<hr />
+<h2><strong>升维—非线性—降维的设计动机</strong></h2>
+<p>FFN 中“先升维、再降维”的结构并非偶然，而是 Transformer 表达能力的核心来源。</p>
+<ol>
+<li>
+<p><strong>扩展表示空间</strong></p>
+<p>中间层维度 $d_{\text{ff}}$ 通常是 $d_{\text{model}} $的 4 倍左右。高维空间提供了更强的函数拟合能力，使模型能够表示复杂的特征组合。</p>
+</li>
+<li>
+<p><strong>引入非线性建模能力</strong></p>
+<p>自注意力本质上是线性加权求和，只能重组已有特征，无法产生新的语义结构。FFN 通过非线性激活，使模型能够学习条件关系和高阶特征。</p>
+</li>
+<li>
+<p><strong>特征解耦与重组</strong></p>
+<p>升维后的空间允许不同语义子特征被分离、激活和重新组合，随后再压缩为更抽象、更有判别力的表示。</p>
+</li>
+</ol>
+<p>从这一角度看，FFN 更接近 Transformer 中真正的“计算单元”，而注意力更多承担结构性信息组织的角色。</p>
+<hr />
+<h2><strong>FFN 对语义理解的作用</strong></h2>
+<p>在经过注意力计算后，每个 token 的表示已经融合了上下文信息，但这些信息仍然是线性叠加的结果。FFN 在此基础上完成语义层面的再解释。</p>
+<p>例如，在上下文信息已被聚合后，FFN 能够根据特征组合激活特定语义模式，将模糊的上下文混合表示映射为更明确的高层语义状态。这种能力并非来自 token 间交互，而是来自对单个 token 表示的深度非线性变换。</p>
+<hr />
+<h2><strong>为什么 FFN 采用逐位置设计</strong></h2>
+<p>FFN 以逐位置方式作用，原因在于 Transformer 的结构分层原则：</p>
+<ul>
+<li>token 之间的依赖关系已经由自注意力显式建模；</li>
+<li>FFN 专注于 token 内部的语义加工；</li>
+<li>职责分离使模型结构更清晰、训练更稳定。</li>
+</ul>
+<p>这种设计也使 FFN 在计算上高度并行，适合大规模模型训练。</p>
+<hr />
+<h2><strong>缺失 FFN 的影响</strong></h2>
+<p>如果 Transformer 中仅保留注意力而移除 FFN，那么整个网络将退化为线性映射的堆叠。即便层数增加，模型仍无法表示复杂的非线性函数，表达能力会受到根本性限制。</p>
+<p>在实际的大语言模型中，FFN 不仅承担主要的非线性建模任务，其参数量和计算量也通常占据模型总量的绝大部分。这一事实从工程层面进一步印证了 FFN 在 Transformer 中的核心地位。</p>
+<hr />
+<h2><strong>FFN 的结构演进</strong></h2>
+<p>随着模型规模和任务复杂度的提升，FFN 的形式也在不断演化：</p>
+<ul>
+<li><strong>GELU FFN</strong>：常见于 BERT、早期 GPT 系列</li>
+<li><strong>SwiGLU / GEGLU</strong>：引入门控机制，提高表达效率（LLaMA、PaLM、T5）</li>
+<li><strong>MoE-FFN</strong>：通过专家路由进一步提升模型容量（Mixtral、DeepSeek-MoE）</li>
+</ul>
+<p>尽管实现形式不同，这些变体仍遵循同一基本思想：在高维空间中进行非线性特征加工，再映射回模型表示空间。</p>
+<hr />
+<h2><strong>总结</strong></h2>
+<p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
+<p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-13T16:21:19.640657+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -125,7 +201,7 @@
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-13T11:34:23.727426+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-13T16:21:19.816600+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -324,7 +400,7 @@
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-13T11:34:23.925155+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-13T16:21:20.014772+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -713,7 +789,7 @@
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T11:34:24.147323+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T16:21:20.243526+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -983,7 +1059,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T11:34:24.353679+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T16:21:20.426326+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
