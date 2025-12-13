@@ -1,2 +1,187 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T04:33:15.424355+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator></feed>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T05:48:20.385717+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T05:48:21.441307+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+<p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
+<p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
+<p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
+<blockquote>
+<p><strong>RAG 能检索到信息，但并不真正“理解结构”。</strong></p>
+</blockquote>
+<p>GraphRAG 与 LightRAG，正是在这一背景下被提出的两种结构化检索方案。</p>
+<hr />
+<h2><strong>一、传统 RAG 的结构性瓶颈</strong></h2>
+<p>传统 RAG 的系统抽象非常清晰：</p>
+<ul>
+<li>文档 → Chunk</li>
+<li>Chunk → 向量</li>
+<li>Query → 相似度检索 → 上下文拼接</li>
+</ul>
+<p>这种设计在以下任务中表现良好：</p>
+<ul>
+<li>明确事实查询</li>
+<li>定位具体段落</li>
+<li>局部知识补全</li>
+</ul>
+<p>但它存在一个<strong>无法通过调参或模型升级解决的系统性限制</strong>：</p>
+<blockquote>
+<p><strong>Chunk 是扁平的，而知识本身是结构化的。</strong></p>
+</blockquote>
+<h3><strong>结构缺失带来的直接后果</strong></h3>
+<ul>
+<li>文档之间的关联关系被切断</li>
+<li>实体之间的因果、从属、演化关系无法显式建模</li>
+<li>模型只能“拼上下文”，而非“基于结构推理”</li>
+</ul>
+<p>这意味着，当问题本身涉及<strong>整体脉络、跨文档关系或宏观总结</strong>时，传统 RAG 的能力上限会迅速暴露。</p>
+<hr />
+<h2><strong>二、GraphRAG 是什么：第一次把“图结构”带入 RAG</strong></h2>
+<p><strong>GraphRAG</strong> 是微软提出的一种 RAG 扩展框架，其核心目标并不是“检索更准的文本”，</p>
+<p>而是：</p>
+<blockquote>
+<p><strong>让 RAG 具备显式建模和利用“知识结构”的能力。</strong></p>
+</blockquote>
+<p>在 GraphRAG 中，知识不再被视为一堆独立的文本片段，而是被重构为一个<strong>由实体与关系组成的图结构（Knowledge Graph）</strong>。</p>
+<p>RAG 的检索对象，也从“文本 Chunk”升级为“图中的结构单元”。</p>
+<hr />
+<h2><strong>三、GraphRAG：显式引入“全局结构”的系统设计</strong></h2>
+<h3><strong>1. GraphRAG 的核心设计思路</strong></h3>
+<p>GraphRAG 的关键思想可以概括为一句话：</p>
+<blockquote>
+<p><strong>既然知识天然是图结构的，那就直接构建图，并在图的层面进行检索与摘要。</strong></p>
+</blockquote>
+<p>为此，GraphRAG 在 indexing 阶段引入了一套完整但代价不菲的流程：</p>
+<ol>
+<li>
+<p><strong>实体与关系抽取</strong></p>
+<p>使用 LLM 从原始文本中抽取实体（人物、概念、事件）及其关系。</p>
+</li>
+<li>
+<p><strong>知识图谱构建</strong></p>
+<p>将实体作为节点，关系作为边，形成全局图结构。</p>
+</li>
+<li>
+<p><strong>社区发现（Community Detection）</strong></p>
+<p>使用 Leiden 等图算法，将高度相关的子图聚合为“社区”。</p>
+</li>
+<li>
+<p><strong>社区级摘要生成</strong></p>
+<p>为每个社区预先生成结构化摘要，作为后续检索的高层语义单元。</p>
+</li>
+</ol>
+<hr />
+<h3><strong>2. GraphRAG 解决了什么本质问题？</strong></h3>
+<p>GraphRAG 首次在 RAG 框架中引入了<strong>全局结构感知能力</strong>：</p>
+<ul>
+<li>不再只关注“相关段落”</li>
+<li>而是能够回答“整体结构上发生了什么”</li>
+</ul>
+<p>例如：</p>
+<ul>
+<li>“整个语料中反复出现的核心主题是什么？”</li>
+<li>“多个事件之间是否存在系统性关联？”</li>
+</ul>
+<p>这类问题，本质上需要<strong>跨文本、跨实体、跨关系的全局推理</strong>，</p>
+<p>而这正是 GraphRAG 的优势所在。</p>
+<hr />
+<h3><strong>3. 但系统代价同样明确</strong></h3>
+<p>从工程角度看，GraphRAG 的主要问题并不在效果，而在<strong>系统可持续性</strong>：</p>
+<ul>
+<li>索引阶段 Token 成本极高</li>
+<li>社区结构对数据变化高度敏感</li>
+<li>增量更新几乎不可行</li>
+</ul>
+<p>因此，GraphRAG 更适合<strong>离线分析型任务</strong>，而非高频更新的在线系统。</p>
+<hr />
+<h2><strong>四、LightRAG 是什么：对 GraphRAG 的工程化回应</strong></h2>
+<p><strong>LightRAG</strong> 并不是对 GraphRAG 的否定，而是一种<strong>面向工程现实的重新设计</strong>。</p>
+<p>它试图回答的问题是：</p>
+<blockquote>
+<p><strong>是否一定要构建“全局静态结构”，才能让 RAG 具备结构化推理能力？</strong></p>
+</blockquote>
+<p>LightRAG 的答案是：<strong>不一定。</strong></p>
+<hr />
+<h2><strong>五、LightRAG：把结构留到 Query 时再用</strong></h2>
+<h3><strong>1. 设计立场的根本转变</strong></h3>
+<p>与 GraphRAG 相比，LightRAG 的核心转变在于：</p>
+<ul>
+<li>不再预生成全局社区摘要</li>
+<li>保留图结构，但不“冻结”结构语义</li>
+<li>将结构的使用推迟到 Query 阶段</li>
+</ul>
+<p>可以将两者的差异理解为：</p>
+<blockquote>
+<p>GraphRAG：<strong>结构是提前计算好的</strong></p>
+</blockquote>
+<blockquote>
+<p>LightRAG：<strong>结构是按需被查询和展开的</strong></p>
+</blockquote>
+<hr />
+<h3><strong>2. 双层检索的工程意义</strong></h3>
+<p>LightRAG 采用了一种<strong>图结构 + 向量检索的协同机制</strong>：</p>
+<ul>
+<li><strong>向量层</strong>：快速召回相关实体或节点</li>
+<li><strong>图结构层</strong>：基于关系进行上下文扩展与约束</li>
+</ul>
+<p>这种设计带来的直接好处是：</p>
+<ul>
+<li>支持增量更新</li>
+<li>检索路径随 Query 动态变化</li>
+<li>成本与延迟显著降低</li>
+</ul>
+<hr />
+<h2><strong>六、三种 RAG 方案的系统级对比</strong></h2>
+<table>
+<thead>
+<tr>
+<th><strong>维度</strong></th>
+<th><strong>传统 RAG</strong></th>
+<th><strong>GraphRAG</strong></th>
+<th><strong>LightRAG</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>知识建模</td>
+<td>扁平文本</td>
+<td>显式全局图</td>
+<td>局部图 + 向量</td>
+</tr>
+<tr>
+<td>全局理解</td>
+<td>❌</td>
+<td>✅</td>
+<td>部分支持</td>
+</tr>
+<tr>
+<td>索引成本</td>
+<td>低</td>
+<td>极高</td>
+<td>中等</td>
+</tr>
+<tr>
+<td>增量更新</td>
+<td>易</td>
+<td>困难</td>
+<td>易</td>
+</tr>
+<tr>
+<td>工程可用性</td>
+<td>高</td>
+<td>低</td>
+<td>高</td>
+</tr>
+</tbody></table><hr />
+<h2><strong>七、结论：Graph 不是目的，结构化推理才是</strong></h2>
+<p>GraphRAG 与 LightRAG 的分歧，并不在“用不用图”，而在于：</p>
+<blockquote>
+<p><strong>结构化能力应当放在“离线建模”还是“在线推理”阶段。</strong></p>
+</blockquote>
+<ul>
+<li>GraphRAG 代表<strong>认知完整性优先</strong></li>
+<li>LightRAG 代表<strong>工程可落地性优先</strong></li>
+</ul>
+<p>在可预见的未来，更可能的方向是：</p>
+<blockquote>
+<p><strong>图结构 × 向量检索 × 动态推理路径的融合系统</strong></p>
+</blockquote>
+<hr />
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/1"/><category term="RAG"/><published>2025-12-13T05:46:09+00:00</published></entry></feed>
