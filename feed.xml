@@ -1,5 +1,394 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T06:37:05.289176+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T06:37:05.616771+00:00</updated><content type="html"><![CDATA[<blockquote>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T06:58:07.624756+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-13T06:58:07.995932+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+<p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
+<p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
+<blockquote>
+<p><strong>让大模型的训练与推理更快、更省、更可落地。</strong></p>
+</blockquote>
+<p>QLoRA 正是将“<strong>量化</strong>”与“<strong>LoRA 微调</strong>”这两条路线真正融合到了一起，首次实现了：</p>
+<blockquote>
+<p><strong>在 4bit 量化模型上稳定训练 LoRA，且效果几乎不损失。</strong></p>
+</blockquote>
+<p>这让 <strong>70B 级别模型的单卡微调</strong> 成为现实。</p>
+<hr />
+<h2><strong>一、为什么需要 QLoRA？</strong></h2>
+<h3><strong>1. 传统微调的显存瓶颈</strong></h3>
+<table>
+<thead>
+<tr>
+<th><strong>方法</strong></th>
+<th><strong>显存需求</strong></th>
+<th><strong>问题</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全参数微调</td>
+<td>极高（65B &gt;300GB）</td>
+<td>完全不可落地</td>
+</tr>
+<tr>
+<td>LoRA（FP16）</td>
+<td>较高（65B &gt;120GB）</td>
+<td>模型仍需 FP16 加载</td>
+</tr>
+<tr>
+<td>GPTQ / AWQ</td>
+<td>低</td>
+<td>只能推理，难以训练</td>
+</tr>
+</tbody></table><p>结论非常明确：</p>
+<blockquote>
+<p><strong>我们需要一种：既能量化、又能训练的方案。</strong></p>
+</blockquote>
+<p>QLoRA 就是这个答案。</p>
+<hr />
+<h2><strong>二、QLoRA 的一句话定义</strong></h2>
+<blockquote>
+<p><strong>QLoRA（Quantized LoRA）</strong></p>
+</blockquote>
+<blockquote>
+<p>是一种在 <strong>4bit 量化模型上冻结主权重，仅训练 LoRA 低秩参数</strong> 的高效微调方法，在显存降低约 75% 的同时，训练效果接近甚至优于全参微调。</p>
+</blockquote>
+<hr />
+<h2><strong>三、QLoRA 的整体技术框架</strong></h2>
+<p>QLoRA 并不是单一技术，而是<strong>四项关键工程与算法设计的组合</strong>：</p>
+<ol>
+<li><strong>NF4（4bit Normal Float）量化</strong></li>
+<li><strong>分块 + 分位数量化</strong></li>
+<li><strong>双重量化（Double Quantization）</strong></li>
+<li><strong>分页优化（Paged Optimizer / Paged Attention）</strong></li>
+<li><strong>LoRA Adapter 训练</strong></li>
+</ol>
+<p>下面逐一拆解。</p>
+<hr />
+<h2><strong>四、模型量化基础（理解 QLoRA 的前提）</strong></h2>
+<h3><strong>4.1 什么是模型量化？</strong></h3>
+<p>模型量化的目标是：</p>
+<blockquote>
+<p><strong>用更低精度表示权重，在可接受的误差范围内减少模型体积和显存占用。</strong></p>
+</blockquote>
+<p>本质上，这是一个<strong>有损压缩问题</strong>。</p>
+<p>常见量化方式包括：</p>
+<ul>
+<li>线性量化（absmax）</li>
+<li>零点量化（zero-point）</li>
+<li>非线性量化（分位数量化）</li>
+</ul>
+<hr />
+<h3><strong>4.2 分位数量化（Quantile Quantization）</strong></h3>
+<p>QLoRA 的关键观察是：</p>
+<blockquote>
+<p><strong>大模型权重通常近似服从正态分布。</strong></p>
+</blockquote>
+<p>因此，与其用线性区间均匀切分，不如：</p>
+<ul>
+<li>按 <strong>CDF 等概率切分</strong></li>
+<li>让每个量化 bin 出现频率尽可能一致</li>
+</ul>
+<p>这就是 <strong>分位数量化</strong> 的核心思想。</p>
+<hr />
+<h2><strong>五、NF4：QLoRA 能在 4bit 下不掉点的根本原因</strong></h2>
+<h3><strong>5.1 一句话理解 NF4</strong></h3>
+<blockquote>
+<p><strong>NF4 是一种专为大模型权重分布设计的 4bit 非均匀量化格式，通过将有限的 4bit 表示能力集中在高概率区域，从而在极低精度下最大化表达能力。</strong></p>
+</blockquote>
+<p>它不是“更激进的 INT4”，而是<strong>完全不同的量化思路</strong>。</p>
+<hr />
+<h3><strong>5.2 为什么传统 INT4 不适合大模型？</strong></h3>
+<p>INT4 采用的是<strong>均匀量化</strong>：</p>
+<ul>
+<li>4bit → 16 个等距离散值</li>
+<li>默认假设数值分布是均匀的</li>
+</ul>
+<p>但大模型（LLM）的权重分布具有非常明确的统计特征：</p>
+<ul>
+<li>近似 <strong>零均值</strong></li>
+<li>近似 <strong>正态分布</strong></li>
+<li><strong>大量权重集中在 0 附近</strong></li>
+<li>极端大值数量极少，但幅度大</li>
+</ul>
+<p>这会直接导致 INT4 的问题：</p>
+<ul>
+<li>中心区域（最重要的权重区间）精度不足</li>
+<li>量化桶大量浪费在几乎不会出现的区间</li>
+<li>少量误差被放大为性能下降</li>
+</ul>
+<p><strong>换句话说：INT4 在“统计意义上”并不匹配 LLM。</strong></p>
+<hr />
+<h3><strong>5.3 NF4 的核心思想：非均匀量化</strong></h3>
+<p>NF4 的设计目标非常明确：</p>
+<blockquote>
+<p><strong>把有限的 16 个量化值，用在最“值得用”的地方。</strong></p>
+</blockquote>
+<p>具体来说：</p>
+<ul>
+<li>在 <strong>0 附近分布更密</strong></li>
+<li>在 <strong>两端极值区域分布更稀</strong></li>
+</ul>
+<p>这使得：</p>
+<ul>
+<li>常见的小权重 → 高精度表示</li>
+<li>罕见的大权重 → 容忍更大误差</li>
+</ul>
+<p>这种设计与 LLM 权重的真实分布高度匹配。</p>
+<hr />
+<h3><strong>5.4 NF4 是怎么实现的？</strong></h3>
+<h4><strong>1️⃣ 预定义 16 个“浮点量化值”</strong></h4>
+<p>NF4 并不是简单的整数映射，而是<strong>预先定义好的 16 个浮点值</strong>，这些值近似来自：</p>
+<ul>
+<li>标准正态分布的分位点（quantiles）</li>
+<li>经过归一化与截断处理</li>
+</ul>
+<p>你可以把它理解为：</p>
+<pre><code>[-a, ..., -small, 0, +small, ..., +a]
+</code></pre>
+<p>但它们<strong>不是等距的</strong>，而是统计意义上更合理的分布。</p>
+<hr />
+<h4><strong>2️⃣ 权重映射到最近的 NF4 值</strong></h4>
+<p>量化过程本质上是一个最近邻映射：</p>
+<p>$q = \arg\min_{v \in \text{NF4 values}} |w - v|$</p>
+<p>反量化时：</p>
+<p>$\hat{w} = s \cdot q$</p>
+<p>其中：</p>
+<ul>
+<li>q：4bit index</li>
+<li>s：FP16（或经双重量化后的）scale</li>
+</ul>
+<p><strong>scale 的精度非常关键</strong>，它决定了整个 block 的动态范围。</p>
+<hr />
+<h3><strong>5.5 为什么 NF4 比 INT4 精度高？</strong></h3>
+<h4><strong>（1）分布匹配</strong></h4>
+<ul>
+<li>LLM 权重 ≈ 正态分布</li>
+<li>NF4 量化点 ≈ 正态分布分位点</li>
+</ul>
+<p>→ 在统计意义上是近似最优的 4bit 表示。</p>
+<hr />
+<h4><strong>（2）误差集中在“不重要区域”</strong></h4>
+<ul>
+<li>小权重：数量多、贡献大 → 高精度</li>
+<li>大权重：数量少 → 容忍误差</li>
+</ul>
+<p>整体误差被有效控制。</p>
+<hr />
+<h4><strong>（3）论文实验结论</strong></h4>
+<p>QLoRA 原论文明确指出：</p>
+<blockquote>
+<p><strong>NF4 在 4bit 条件下的量化误差，接近 FP16，显著优于 INT4。</strong></p>
+</blockquote>
+<p>这正是 QLoRA 能在 4bit 下“几乎不掉点”的关键原因。</p>
+<hr />
+<h3><strong>5.6 NF4 在 QLoRA 中的角色定位</strong></h3>
+<p>在 QLoRA 框架中，各部分分工非常清晰：</p>
+<table>
+<thead>
+<tr>
+<th><strong>组件</strong></th>
+<th><strong>精度</strong></th>
+<th><strong>是否训练</strong></th>
+<th><strong>作用</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Base 权重</td>
+<td>NF4</td>
+<td>❌ 冻结</td>
+<td>压缩模型、降低显存</td>
+</tr>
+<tr>
+<td>Scale</td>
+<td>FP16 / 双量化</td>
+<td>❌</td>
+<td>恢复动态范围</td>
+</tr>
+<tr>
+<td>LoRA A/B</td>
+<td>FP16 / BF16</td>
+<td>✅</td>
+<td>学习新任务、补偿误差</td>
+</tr>
+</tbody></table><p>可以这样理解：</p>
+<blockquote>
+<p><strong>NF4 负责“把模型装进显存”，</strong></p>
+</blockquote>
+<blockquote>
+<p><strong>LoRA 负责“把能力补回来”。</strong></p>
+</blockquote>
+<hr />
+<h3>5.7 NF4 vs INT4</h3>
+<table>
+<thead>
+<tr>
+<th><strong>对比项</strong></th>
+<th><strong>INT4</strong></th>
+<th><strong>NF4</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>量化方式</td>
+<td>均匀</td>
+<td>非均匀</td>
+</tr>
+<tr>
+<td>感知权重分布</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>中心区域精度</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>是否适合 LLM</td>
+<td>一般</td>
+<td>非常适合</td>
+</tr>
+<tr>
+<td>QLoRA 默认</td>
+<td>❌</td>
+<td>✅</td>
+</tr>
+</tbody></table><p>一句话总结：</p>
+<blockquote>
+<p><strong>INT4 是通用压缩方案，NF4 是为大模型定制的 4bit 浮点格式。</strong></p>
+</blockquote>
+<hr />
+<h3><strong>5.8 一个常被追问的点</strong></h3>
+<p><strong>NF4 是浮点还是整数？</strong></p>
+<ul>
+<li><strong>逻辑上</strong>：4bit 浮点格式</li>
+<li><strong>实现上</strong>：4bit index + FP16 scale</li>
+</ul>
+<p>它不是传统 IEEE 浮点，而是<strong>为神经网络权重定制的表示形式</strong>。</p>
+<hr />
+<h2><strong>小结</strong></h2>
+<p>如果没有 NF4：</p>
+<ul>
+<li>4bit 量化 ≈ 性能大幅下降</li>
+<li>LoRA 无法完全补偿量化误差</li>
+</ul>
+<p>而正是 NF4 的存在，才让下面这件事成立：</p>
+<blockquote>
+<p><strong>在 4bit 条件下冻结主权重，只训练少量 LoRA 参数，依然可以达到接近全参微调的效果。</strong></p>
+</blockquote>
+<p>这也是为什么——</p>
+<p><strong>几乎所有严肃的 QLoRA 实现，都会默认使用 NF4。</strong></p>
+<hr />
+<h2><strong>六、双重量化：进一步压缩显存</strong></h2>
+<p>在 4bit 量化中：</p>
+<ul>
+<li>权重 → 4bit</li>
+<li>量化常数 c → FP32（显存杀手）</li>
+</ul>
+<p>QLoRA 的解决方案是：</p>
+<blockquote>
+<p><strong>对量化常数本身再做一次 8bit 量化。</strong></p>
+</blockquote>
+<p>即：</p>
+<ul>
+<li>第一层：权重量化</li>
+<li>第二层：量化常数量化</li>
+</ul>
+<p>结果：</p>
+<ul>
+<li>量化常数显存占用从 <strong><del>1.6% → </del>0.37%</strong></li>
+<li>几乎没有额外精度损失</li>
+</ul>
+<hr />
+<h2><strong>七、Paged Optimizer：避免训练 OOM 的关键工程技巧</strong></h2>
+<p>即使权重量化，训练中仍存在一个风险：</p>
+<blockquote>
+<p><strong>显存峰值（activation + gradient checkpoint）导致 OOM。</strong></p>
+</blockquote>
+<p>QLoRA 引入 <strong>分页优化（Paged Optimizer / Paged Attention）</strong>：</p>
+<ul>
+<li>将部分 KV cache / 激活页换出到 CPU 内存</li>
+<li>类似操作系统的虚拟内存分页机制</li>
+<li>在显存紧张时动态调度</li>
+</ul>
+<p>这使得：</p>
+<blockquote>
+<p><strong>13B–70B 模型在单卡训练成为可能。</strong></p>
+</blockquote>
+<hr />
+<h2><strong>八、QLoRA 如何与 LoRA 结合？</strong></h2>
+<p>核心公式仍然是 LoRA 的形式：</p>
+<p>$W' = W + \Delta W,\quad \Delta W = BA$</p>
+<p>区别在于：</p>
+<ul>
+<li>W：4bit NF4 量化权重（冻结）</li>
+<li>A, B：FP16 / BF16 LoRA 参数（可训练）</li>
+</ul>
+<p>训练时：</p>
+<ul>
+<li>主权重仅反量化参与前向</li>
+<li><strong>梯度只回传到 LoRA</strong></li>
+</ul>
+<p>这也是 QLoRA 能“量化 + 训练”共存的根本原因。</p>
+<hr />
+<h2><strong>九、QLoRA 的能力边界</strong></h2>
+<h3><strong>支持的任务</strong></h3>
+<table>
+<thead>
+<tr>
+<th><strong>能力</strong></th>
+<th><strong>是否支持</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SFT</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DPO / ORPO</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>多轮对话</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>单卡 70B</td>
+<td>✅</td>
+</tr>
+</tbody></table><hr />
+<h3><strong>不适合的场景</strong></h3>
+<ul>
+<li>模型结构级改动（attention 重构）</li>
+<li>LoRA rank 太小（易欠拟合）</li>
+<li>极端高精度任务（数学 / 代码）</li>
+</ul>
+<hr />
+<h2><strong>十、总结：QLoRA 的真正价值</strong></h2>
+<p>QLoRA 的本质不是“LoRA 的改进”，而是：</p>
+<blockquote>
+<p><strong>把大模型训练，从“算力竞赛”拉回到“工程理性”。</strong></p>
+</blockquote>
+<p>它证明了一件事：</p>
+<ul>
+<li>量化 ≠ 只能推理</li>
+<li>低精度 ≠ 低性能</li>
+</ul>
+<p>在今天，QLoRA 已经成为：</p>
+<blockquote>
+<p><strong>企业 SFT / DPO / 垂域微调的事实标准方案。</strong></p>
+</blockquote>
+<hr />
+<h2><strong>写在最后</strong></h2>
+<p>这篇文章既是对 QLoRA 的系统性梳理，也是一种个人补课记录。</p>
+<p>如果其中存在理解偏差，欢迎讨论与指正。</p>
+<hr />
+<h3><strong>参考</strong></h3>
+<ul>
+<li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
+<li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
+</ul>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T06:58:08.175921+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -269,7 +658,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T06:37:05.807290+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T06:58:08.363855+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
