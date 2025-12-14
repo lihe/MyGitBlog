@@ -1,5 +1,90 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-13T16:26:30.509129+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-13T16:26:30.999002+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T04:19:15.400403+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T04:19:15.742116+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
+<p>Prefix-Tuning 最早由 Li 和 Liang 在 2021 年提出，其核心思想是在不修改模型权重的前提下，通过在 Transformer 的注意力机制中引入可学习的前缀向量，引导模型在生成阶段表现出符合下游任务需求的行为。</p>
+<hr />
+<h2><strong>方法动机与提出背景</strong></h2>
+<p>传统微调方法主要面临两类问题：</p>
+<p>一方面，全参数微调需要更新大量模型权重，在大模型场景下带来显著的显存与算力压力，同时也容易引发过拟合或灾难性遗忘。</p>
+<p>另一方面，基于自然语言提示或仅作用于输入层的 Prompt / P-Tuning 方法，对模型深层计算路径的影响有限，在复杂生成任务中控制能力不足。</p>
+<p>Prefix-Tuning 的设计目标是在保持模型参数完全冻结的情况下，对模型的<strong>内部推理过程</strong>施加更直接、可控的影响。</p>
+<hr />
+<h2><strong>核心思想与基本原理</strong></h2>
+<img width="415" height="342" alt="Image" src="https://github.com/user-attachments/assets/5ce41760-fc0f-4424-8c1e-944131851c6c" />
+<h3><strong>注意力机制回顾</strong></h3>
+<p>在 Transformer 中，自注意力机制的核心计算形式为：</p>
+<p>$\text{Attention}(Q, K, V)$</p>
+<p>其中，查询（Q）来自当前 token 表示，键（K）和值（V）来自上下文 token 表示。注意力输出本质上是对值向量的加权组合，权重由查询与键的相似度决定。</p>
+<h3><strong>Prefix-Tuning 的关键改动</strong></h3>
+<p>Prefix-Tuning 在 Transformer 的<strong>每一层注意力模块中</strong>引入一组可训练的前缀向量。这些前缀并非真实文本 token，而是连续的高维向量，用于扩展注意力中的键和值：</p>
+<p>$K = [K_{\text{prefix}} ; K_{\text{input}}], \quad V = [V_{\text{prefix}} ; V_{\text{input}}]$</p>
+<p>其中：</p>
+<ul>
+<li>查询 Q 保持不变；</li>
+<li>前缀向量仅参与注意力计算，不进入前馈网络；</li>
+<li>前缀在同一任务中对所有输入共享。</li>
+</ul>
+<p>这种设计使模型在每一层计算注意力时，都会将前缀作为潜在的重要上下文进行考虑。</p>
+<hr />
+<h2><strong>Prefix-Tuning 的作用机制</strong></h2>
+<p>Prefix-Tuning 的有效性主要来源于以下几个方面：</p>
+<p><strong>作用层级更深</strong></p>
+<p>不同于仅在输入层注入信息的提示方法，Prefix-Tuning 在每一层注意力计算中引入前缀，对模型的中间表示与决策路径产生持续影响。</p>
+<p><strong>摆脱自然语言约束</strong></p>
+<p>前缀由连续向量构成，不受自然语言形式限制，能够在更大的表示空间中学习任务相关信息。</p>
+<p><strong>直接干预注意力分布</strong></p>
+<p>注意力机制决定了模型在每一层“关注什么”。通过在键和值中引入前缀，Prefix-Tuning 实际上在每一层对模型的关注重点进行调节。</p>
+<p>从功能上看，Prefix-Tuning 相当于在模型内部构建了一段隐式的、可学习的上下文。</p>
+<hr />
+<h2><strong>训练与参数规模</strong></h2>
+<p>Prefix-Tuning 的训练流程具有较强的工程友好性：</p>
+<ol>
+<li>为每一层初始化一组前缀向量（通常对应 K/V）；</li>
+<li>冻结原始 Transformer 的全部参数；</li>
+<li>前向传播时将前缀拼接到注意力的键和值中；</li>
+<li>使用下游任务损失进行反向传播；</li>
+<li>仅更新前缀相关参数。</li>
+</ol>
+<p>在实际应用中，Prefix-Tuning 的参数规模通常为万级到十万级，远小于全参数微调，也通常小于基于低秩权重更新的方法。</p>
+<hr />
+<h2><strong>与相关方法的关系</strong></h2>
+<p>从结构干预深度来看，Prefix-Tuning 位于输入级提示方法与权重级方法之间：</p>
+<ul>
+<li>Prompt Engineering 通过自然语言文本影响模型行为；</li>
+<li>P-Tuning 在输入 embedding 层引入可学习提示；</li>
+<li>Prefix-Tuning 在每一层注意力的键和值中引入前缀；</li>
+<li>LoRA 等方法直接修改模型权重矩阵的有效表示。</li>
+</ul>
+<p>这种位置上的差异决定了 Prefix-Tuning 在控制能力与参数效率之间取得了较为平衡的效果。</p>
+<hr />
+<h2><strong>优势与局限</strong></h2>
+<p>Prefix-Tuning 的主要优势包括：</p>
+<ul>
+<li>参数效率高，仅需训练少量前缀向量；</li>
+<li>不修改模型权重，训练与部署过程相对安全稳定；</li>
+<li>对生成类任务（如摘要、翻译、对话）具有良好适应性；</li>
+<li>支持多任务场景下加载不同前缀进行快速切换。</li>
+</ul>
+<p>其局限性也同样明确：</p>
+<ul>
+<li>推理阶段需额外加载前缀，带来一定计算与存储开销；</li>
+<li>表达能力通常不及直接修改权重的方法；</li>
+<li>实现复杂度高于仅作用于输入层的提示方法。</li>
+</ul>
+<hr />
+<h2><strong>应用场景与实践经验</strong></h2>
+<p>Prefix-Tuning 更适合以下场景：</p>
+<ul>
+<li>中等复杂度的文本生成任务；</li>
+<li>下游数据规模有限；</li>
+<li>对模型参数安全性要求较高；</li>
+<li>多任务或多领域快速切换需求明显。</li>
+</ul>
+<p>在需要显著改变模型能力或进行复杂推理、代码生成等任务时，通常需要结合或转向更强的权重级参数高效方法。</p>
+<hr />
+<h2><strong>总结</strong></h2>
+<p>Prefix-Tuning 通过在 Transformer 每一层注意力机制中引入可学习的前缀向量，在冻结模型参数的前提下，实现了对模型生成行为的有效引导。该方法在参数效率、稳定性与控制能力之间提供了一种折中方案，是参数高效微调技术体系中的重要组成部分。</p>
+<p>在现代大模型应用中，Prefix-Tuning 常与其他 PEFT 方法共同构成一条从“提示级控制”到“权重级适配”的连续技术路径。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T04:19:15.884323+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
 <img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
 <hr />
 <h2><strong>注意力与 FFN 的职责分工</strong></h2>
@@ -75,7 +160,7 @@
 <h2><strong>总结</strong></h2>
 <p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
 <p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-13T16:26:31.193407+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T04:19:16.014008+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -201,7 +286,7 @@
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-13T16:26:31.408464+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T04:19:16.183991+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -400,7 +485,7 @@
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-13T16:26:31.638482+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T04:19:16.370909+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -789,7 +874,7 @@
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-13T16:26:31.932884+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T04:19:16.538714+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -1059,7 +1144,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-13T16:26:32.199116+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T04:19:16.687372+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
