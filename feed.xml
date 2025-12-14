@@ -1,5 +1,160 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T13:22:17.155781+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-14T13:22:17.811315+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T13:59:21.878771+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2025-12-14T13:59:22.256249+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
+<p>不同于“层与层之间共享参数”的直觉理解，Transformer 的权重共享主要发生在<strong>位置维度和词表维度</strong>，而不是深度维度。理解这一点，是理解 Transformer 架构设计哲学的重要一步。</p>
+<hr />
+<h2><strong>一、什么是权重共享</strong></h2>
+<p>权重共享指的是：<strong>在模型的不同计算位置或不同使用场景中复用同一组参数</strong>，而不是为每个位置或情况单独学习一套权重。</p>
+<p>其核心目的包括：</p>
+<ul>
+<li>减少参数规模</li>
+<li>强化模型的泛化能力</li>
+<li>引入结构上的不变性假设</li>
+</ul>
+<p>在 Transformer 中，权重共享并非“随意为之”，而是与序列建模的本质高度契合。</p>
+<hr />
+<h2><strong>二、Transformer 中最核心的权重共享位置</strong></h2>
+<h3><strong>1. 前馈网络（FFN）在所有 token 位置之间共享参数</strong></h3>
+<p>在每一层 Transformer 中，前馈网络的形式为：</p>
+<p>$\text{FFN}(x_i) = W_2 ,\sigma(W_1 x_i + b_1) + b_2$</p>
+<p>关键点在于：</p>
+<ul>
+<li>对序列中<strong>每一个 token</strong>，都使用<strong>同一组</strong> $W_1, W_2$</li>
+<li>参数不随 token 在序列中的位置而变化</li>
+</ul>
+<p>这是一种<strong>位置级共享（position-wise sharing）</strong>，其效果与 CNN 中“卷积核在空间位置上共享”高度类似。</p>
+<p>这一设计保证了：</p>
+<ul>
+<li>同一语义变换规则可作用于任意位置</li>
+<li>模型不依赖固定序列长度</li>
+<li>参数规模与序列长度无关</li>
+</ul>
+<p>这是 Transformer 能够处理任意长度输入的基础之一。</p>
+<hr />
+<h3><strong>2. 自注意力中的 Q / K / V 投影矩阵在所有位置共享</strong></h3>
+<p>在自注意力中，输入序列表示为 X，并通过线性变换得到：</p>
+<p>$Q = XW_Q,\quad K = XW_K,\quad V = XW_V$</p>
+<p>其中：</p>
+<ul>
+<li>$W_Q, W_K, W_V$ 在<strong>所有 token 位置之间完全共享</strong></li>
+<li>不同 token 的差异，来源于输入表示 X，而不是参数本身</li>
+</ul>
+<p>这意味着：</p>
+<ul>
+<li>“如何将一个 token 映射到查询 / 键 / 值空间” 是一种<strong>位置无关的通用语义规则</strong></li>
+</ul>
+<p>这种共享保证了模型对序列中不同位置的 token 采取一致的语义处理方式。</p>
+<hr />
+<h3><strong>3. 多头注意力中：位置共享，头之间不共享</strong></h3>
+<p>在多头注意力机制中：</p>
+<ul>
+<li>每一个 attention head 都有自己独立的 $W_Q^h, W_K^h, W_V^h$</li>
+<li><strong>同一个 head 内部</strong>，这些参数在所有 token 位置上共享</li>
+<li><strong>不同 head 之间</strong>，参数不共享</li>
+</ul>
+<p>因此可以总结为：</p>
+<ul>
+<li>位置维度：共享</li>
+<li>head 维度：不共享</li>
+</ul>
+<p>这种设计使得不同 head 可以学习不同的关系子空间，而每个子空间在序列位置上保持一致的变换规则。</p>
+<hr />
+<h3><strong>4. 层内共享，层间不共享</strong></h3>
+<p>在标准 Transformer 中：</p>
+<ul>
+<li>同一层内部，Attention 和 FFN 的参数对所有 token 共享</li>
+<li>不同层之间，参数完全独立</li>
+</ul>
+<p>每一层可以被理解为学习<strong>不同层级的语义抽象</strong>，因此不进行层间共享。</p>
+<p>需要注意的是，只有在特殊模型（如 ALBERT）中，才会引入层间共享作为额外的参数压缩手段。</p>
+<hr />
+<h3><strong>5. 输入 Embedding 与输出 Softmax 权重的共享（常见实践）</strong></h3>
+<p>在许多语言模型实现中（如 GPT、BERT）：</p>
+<ul>
+<li>输入词嵌入矩阵</li>
+<li>输出层 softmax 前的线性映射矩阵</li>
+</ul>
+<p>会进行权重共享（或转置共享）：</p>
+<p>$W_{\text{out}} = W_{\text{embed}}^\top$</p>
+<p>这种做法的优势包括：</p>
+<ul>
+<li>显著减少参数量</li>
+<li>保证输入与输出使用同一语义空间</li>
+<li>提升泛化能力和训练稳定性</li>
+</ul>
+<p>这是一个非常常见但并非强制的工程选择。</p>
+<hr />
+<h2><strong>三、为什么 Transformer 必须这样共享权重？</strong></h2>
+<h3><strong>1. 序列建模中的“平移不变性”假设</strong></h3>
+<p>在语言中：</p>
+<blockquote>
+<p>一个词出现在句首或句尾，其基本语义处理规则应当一致。</p>
+</blockquote>
+<p>通过在位置维度上共享参数，模型将“位置相关性”与“语义变换规则”解耦：</p>
+<ul>
+<li>语义规则 → 由共享参数学习</li>
+<li>位置信息 → 由位置编码提供</li>
+</ul>
+<hr />
+<h3><strong>2. 参数效率与泛化能力</strong></h3>
+<p>如果不做共享：</p>
+<ul>
+<li>参数量会随序列长度线性或指数增长</li>
+<li>模型更容易过拟合位置模式</li>
+<li>泛化到更长序列将变得不可行</li>
+</ul>
+<p>共享参数使模型学到的是<strong>可复用的语言结构规律</strong>，而不是对某些固定位置的记忆。</p>
+<hr />
+<h3><strong>3. 支持任意长度输入</strong></h3>
+<p>Transformer 能够在推理时处理比训练阶段更长的序列，其前提是：</p>
+<ul>
+<li>参数不依赖于具体的绝对位置索引</li>
+</ul>
+<p>位置级权重共享正是这一能力的结构保障。</p>
+<hr />
+<h2><strong>四、哪些地方没有做权重共享</strong></h2>
+<p>为了避免误解，有必要明确：</p>
+<ul>
+<li>Transformer <strong>不在不同层之间共享参数</strong></li>
+<li>不同 attention head 之间也不共享参数</li>
+<li>模型深度维度上的多样性是有意保留的</li>
+</ul>
+<p>这种“共享与不共享的边界”，正是 Transformer 表达能力与稳定性之间的重要平衡。</p>
+<hr />
+<h2><strong>五、权重共享位置一览</strong></h2>
+<table>
+<thead>
+<tr>
+<th><strong>维度</strong></th>
+<th><strong>是否共享</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>不同 token 位置</td>
+<td>✅ 共享</td>
+</tr>
+<tr>
+<td>同一层内部</td>
+<td>✅ 共享</td>
+</tr>
+<tr>
+<td>不同层之间</td>
+<td>❌ 不共享</td>
+</tr>
+<tr>
+<td>不同 attention head</td>
+<td>❌ 不共享</td>
+</tr>
+<tr>
+<td>输入 / 输出 embedding</td>
+<td>✅（常见）</td>
+</tr>
+</tbody></table><hr />
+<h2><strong>总结</strong></h2>
+<p>Transformer 的权重共享并不 hookup 在“层”这个维度上，而是集中体现在<strong>位置维度和词表维度</strong>。</p>
+<p>通过在所有 token 位置上共享 Attention 和 FFN 的参数，Transformer 实现了类似卷积的平移不变性，并得以支持任意长度序列建模；而通过共享输入与输出 embedding，则进一步提升了参数效率与语义一致性。</p>
+<p>这种共享策略并非工程折中，而是由序列建模与注意力机制的本质共同决定的结构选择。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-14T13:59:22.443101+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
 <blockquote>
 <p><strong>参与梯度累积、数值范围敏感、长期状态的量 → 高精度</strong></p>
 </blockquote>
@@ -266,7 +421,7 @@
 <blockquote>
 <p>混合精度训练的核心不是“能不能用低精度”，而是<strong>绝不让任何会被长期累积、或作为数值基准的变量使用低精度</strong>；前向计算尽量低精度，反向更新与状态一律高精度。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-14T13:22:18.049346+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-14T13:59:22.626784+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
 <h2><strong>一句话结论</strong></h2>
 <p>Transformer 使用 <strong>LayerNorm（层归一化）而不是 BatchNorm（批归一化）</strong>，是因为 Transformer 的计算是逐 token、支持变长序列，并高度依赖自注意力与自回归生成；而 BatchNorm 对 batch 维度和样本分布有强假设，在这些场景下不成立，甚至会破坏模型行为。</p>
 <hr />
@@ -396,7 +551,7 @@
 <hr />
 <h2><strong>总结</strong></h2>
 <p>Transformer 使用 LayerNorm 而不是 BatchNorm，并非经验选择，而是由其逐 token、自回归、变长序列和注意力驱动的计算范式所决定。LayerNorm 在特征维度上对单个样本独立归一化，保证了训练与推理的一致性、数值稳定性和模型行为的可控性，因此成为 Transformer 架构中的标准归一化方案。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T13:22:18.255938+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T13:59:22.815986+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
 <p>Prefix-Tuning 最早由 Li 和 Liang 在 2021 年提出，其核心思想是在不修改模型权重的前提下，通过在 Transformer 的注意力机制中引入可学习的前缀向量，引导模型在生成阶段表现出符合下游任务需求的行为。</p>
 <hr />
 <h2><strong>方法动机与提出背景</strong></h2>
@@ -481,7 +636,7 @@
 <h2><strong>总结</strong></h2>
 <p>Prefix-Tuning 通过在 Transformer 每一层注意力机制中引入可学习的前缀向量，在冻结模型参数的前提下，实现了对模型生成行为的有效引导。该方法在参数效率、稳定性与控制能力之间提供了一种折中方案，是参数高效微调技术体系中的重要组成部分。</p>
 <p>在现代大模型应用中，Prefix-Tuning 常与其他 PEFT 方法共同构成一条从“提示级控制”到“权重级适配”的连续技术路径。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T13:22:18.507148+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T13:59:22.989320+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
 <img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
 <hr />
 <h2><strong>注意力与 FFN 的职责分工</strong></h2>
@@ -557,7 +712,7 @@
 <h2><strong>总结</strong></h2>
 <p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
 <p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T13:22:18.712612+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T13:59:23.148459+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -683,7 +838,7 @@
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T13:22:18.968322+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T13:59:23.313921+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -882,7 +1037,7 @@
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T13:22:19.217722+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T13:59:23.475521+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -1271,7 +1426,7 @@
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T13:22:19.473100+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T13:59:23.663292+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -1541,7 +1696,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T13:22:19.704535+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T13:59:23.833026+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
