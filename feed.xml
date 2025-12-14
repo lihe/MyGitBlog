@@ -1,5 +1,209 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T13:59:21.878771+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2025-12-14T13:59:22.256249+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T14:36:12.845305+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/11</id><title>什么是 KV Cache？</title><updated>2025-12-14T14:36:13.203098+00:00</updated><content type="html"><![CDATA[<p>在大语言模型的推理阶段，**KV Cache（Key-Value Cache）**几乎是不可或缺的基础机制。无论是 GPT、LLaMA、Qwen，还是各类推理框架（Transformers、vLLM、TensorRT-LLM），KV Cache 都直接决定了生成速度、显存占用以及系统吞吐能力。</p>
+<p>它并不是一个“模型结构创新”，而是一个<strong>严格由自回归推理范式推导出来的工程必然</strong>。</p>
+<hr />
+<h2><strong>一、KV Cache 要解决的根本问题</strong></h2>
+<p>在 Transformer Decoder 或 GPT 类模型中，文本生成采用**自回归（autoregressive）**方式：</p>
+<ul>
+<li>每一步生成一个新 token</li>
+<li>新 token 需要对 <strong>所有历史 token</strong> 做一次注意力计算</li>
+</ul>
+<p>在第 t 步生成时，注意力形式为：</p>
+<p>$\text{Attention}(Q_t, K_{1:t}, V_{1:t})$</p>
+<p>如果不做任何缓存，那么在第 t 步：</p>
+<ul>
+<li>前 t-1 个 token 的 Key / Value</li>
+<li>会被<strong>重复计算一次</strong></li>
+</ul>
+<p>随着生成长度增加，这种重复会迅速成为性能瓶颈。</p>
+<hr />
+<h2><strong>二、KV Cache 的核心思想</strong></h2>
+<p>KV Cache 的思想非常直接：</p>
+<blockquote>
+<p><strong>历史 token 的表示一旦算过，就永远不再变化，不需要重复计算。</strong></p>
+</blockquote>
+<p>在注意力中：</p>
+<ul>
+<li><strong>Query（Q）</strong>：来自当前 token，每一步都会变化</li>
+<li><strong>Key（K）、Value（V）</strong>：来自历史 token，一旦生成就固定</li>
+</ul>
+<p>因此：</p>
+<ul>
+<li>只缓存 <strong>K / V</strong></li>
+<li>不缓存 <strong>Q</strong></li>
+</ul>
+<p>这就是 KV Cache 的全部动机。</p>
+<hr />
+<h2><strong>三、KV Cache 的具体工作机制</strong></h2>
+<h3><strong>1. 首次计算（Prefill 阶段）</strong></h3>
+<p>当输入 prompt 时：</p>
+<ul>
+<li>对 prompt 中所有 token</li>
+<li>在每一层 Transformer 中</li>
+<li>计算完整的 Q / K / V</li>
+</ul>
+<p>随后：</p>
+<ul>
+<li>将所有层、所有 head 的 <strong>K / V 存入缓存</strong></li>
+<li>这一步计算量大，属于 <strong>compute-bound</strong></li>
+</ul>
+<hr />
+<h3><strong>2. 自回归生成（Decode 阶段）</strong></h3>
+<p>从生成第一个新 token 开始，每一步：</p>
+<ul>
+<li>
+<p>只对 <strong>新 token</strong> 计算：</p>
+<ul>
+<li>$Q_{\text{new}}$</li>
+<li>$K_{\text{new}}$</li>
+<li>$V_{\text{new}}$</li>
+</ul>
+</li>
+<li>
+<p>从缓存中取出：</p>
+<ul>
+<li>$K_{\text{old}}$</li>
+<li>$V_{\text{old}}$</li>
+</ul>
+</li>
+</ul>
+<p>并进行注意力计算：</p>
+<p>$\text{Attention}\bigl( Q_{\text{new}}, [K_{\text{old}}, K_{\text{new}}], [V_{\text{old}}, V_{\text{new}}] \bigr)$</p>
+<p>随后：</p>
+<ul>
+<li>将 $K_{\text{new}}, V_{\text{new}}$ 追加到 KV Cache</li>
+</ul>
+<p>从这一刻起，<strong>历史 token 的 K / V 永远只计算一次</strong>。</p>
+<hr />
+<h2><strong>四、为什么 KV Cache 能显著加速推理</strong></h2>
+<p>如果不使用 KV Cache：</p>
+<ul>
+<li>第 t 步需要重新计算 $1 \sim t-1$ 的 K / V</li>
+<li>总体计算复杂度接近 $O(t^2)$</li>
+</ul>
+<p>使用 KV Cache 后：</p>
+<ul>
+<li>历史部分不再重复计算</li>
+<li>每一步只新增常数级计算</li>
+</ul>
+<p>整体复杂度变为：</p>
+<ul>
+<li><strong>Prefill：一次性高开销</strong></li>
+<li><strong>Decode：近似</strong> O(t)</li>
+</ul>
+<p>这在长文本生成（几千 token）时，会带来<strong>数量级的速度差异</strong>。</p>
+<hr />
+<h2><strong>五、KV Cache 的真实代价：显存</strong></h2>
+<p>KV Cache 的本质是“用空间换时间”。</p>
+<p>缓存内容包括：</p>
+<ul>
+<li>每一层</li>
+<li>每一个 attention head</li>
+<li>每一个历史 token</li>
+<li>的 Key 和 Value</li>
+</ul>
+<p>显存占用规模近似为：</p>
+<p>$\text{Layers} \times \text{Heads} \times \text{SeqLen} \times \text{HeadDim} \times 2$</p>
+<p>因此：</p>
+<ul>
+<li>
+<p>上下文越长，KV Cache 越大</p>
+</li>
+<li>
+<p>在长上下文推理中：</p>
+<ul>
+<li><strong>KV Cache 往往比模型权重更吃显存</strong></li>
+</ul>
+</li>
+</ul>
+<p>这也是为什么很多系统在长上下文场景下会首先“显存吃满”。</p>
+<hr />
+<h2><strong>六、推理阶段的两个典型特征</strong></h2>
+<h3><strong>1. Prefill vs Decode</strong></h3>
+<p>KV Cache 将推理过程自然分成两个阶段：</p>
+<ul>
+<li>
+<p><strong>Prefill 阶段</strong></p>
+<ul>
+<li>计算密集型（GEMM 多）</li>
+<li>吞吐受算力限制</li>
+</ul>
+</li>
+<li>
+<p><strong>Decode 阶段</strong></p>
+<ul>
+<li>内存密集型</li>
+<li>性能受显存带宽和缓存调度限制</li>
+</ul>
+</li>
+</ul>
+<p>这也是很多推理优化（如 vLLM）重点针对 decode 阶段的原因。</p>
+<hr />
+<h3><strong>2. 为什么训练阶段不用 KV Cache</strong></h3>
+<p>在训练中：</p>
+<ul>
+<li>整段序列并行计算</li>
+<li>每个 token 都参与反向传播</li>
+<li>需要完整计算图</li>
+</ul>
+<p>KV Cache 会破坏梯度流与并行结构，因此：</p>
+<blockquote>
+<p><strong>KV Cache 只用于推理，不用于训练</strong></p>
+</blockquote>
+<hr />
+<h2><strong>七、KV Cache 的常见优化方向</strong></h2>
+<h3><strong>1. Multi-Query / Grouped-Query Attention（MQA / GQA）</strong></h3>
+<ul>
+<li>多个 attention head <strong>共享 K / V</strong></li>
+<li>显著减少 KV Cache 的体积</li>
+</ul>
+<p>这是许多现代模型的默认设计选择。</p>
+<hr />
+<h3><strong>2. Paged KV Cache（vLLM）</strong></h3>
+<ul>
+<li>将 KV Cache 切分成固定大小的 page</li>
+<li>类似操作系统的虚拟内存管理</li>
+<li>减少碎片，提升并发请求能力</li>
+</ul>
+<p>这是 vLLM 在工程上的关键创新之一。</p>
+<hr />
+<h3><strong>3. FlashAttention + KV Cache</strong></h3>
+<ul>
+<li>FlashAttention：优化 attention 计算本身</li>
+<li>KV Cache：避免重复计算历史</li>
+</ul>
+<p>二者解决的是<strong>不同层面的性能问题</strong>，可以同时使用。</p>
+<hr />
+<h3><strong>4. KV Cache Offloading</strong></h3>
+<ul>
+<li>
+<p>将部分 KV Cache 放到 CPU 或其他设备</p>
+</li>
+<li>
+<p>GPU 只保留活跃窗口</p>
+</li>
+<li>
+<p>常用于：</p>
+<ul>
+<li>超长上下文</li>
+<li>显存受限场景</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2><strong>八、一个直观类比</strong></h2>
+<p>KV Cache 就像做阅读理解时的笔记：</p>
+<ul>
+<li>已经读过、理解过的内容记下来</li>
+<li>后面答题时，不需要从头再读</li>
+</ul>
+<p>它并不会改变理解方式，但会极大提升效率。</p>
+<hr />
+<h2><strong>总结</strong></h2>
+<p>KV Cache 是自回归 Transformer 推理中的核心优化机制，通过缓存历史 token 的 Key 和 Value，避免在每一步生成中重复计算注意力，使推理复杂度从近似 $O(t^2)$ 降为 $O(t)$。</p>
+<p>其代价是显存占用随上下文长度线性增长，因此在实际系统中通常会结合 MQA/GQA、Paged Cache、Offloading 等技术进行优化。</p>
+<p>KV Cache 并不是“可选项”，而是<strong>现代大模型推理能够落地的前提条件之一</strong>。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/11"/><category term="Transformer"/><published>2025-12-14T14:35:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2025-12-14T14:36:13.386661+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
 <p>不同于“层与层之间共享参数”的直觉理解，Transformer 的权重共享主要发生在<strong>位置维度和词表维度</strong>，而不是深度维度。理解这一点，是理解 Transformer 架构设计哲学的重要一步。</p>
 <hr />
 <h2><strong>一、什么是权重共享</strong></h2>
@@ -154,7 +358,7 @@
 <p>Transformer 的权重共享并不 hookup 在“层”这个维度上，而是集中体现在<strong>位置维度和词表维度</strong>。</p>
 <p>通过在所有 token 位置上共享 Attention 和 FFN 的参数，Transformer 实现了类似卷积的平移不变性，并得以支持任意长度序列建模；而通过共享输入与输出 embedding，则进一步提升了参数效率与语义一致性。</p>
 <p>这种共享策略并非工程折中，而是由序列建模与注意力机制的本质共同决定的结构选择。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-14T13:59:22.443101+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-14T14:36:13.516711+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
 <blockquote>
 <p><strong>参与梯度累积、数值范围敏感、长期状态的量 → 高精度</strong></p>
 </blockquote>
@@ -421,7 +625,7 @@
 <blockquote>
 <p>混合精度训练的核心不是“能不能用低精度”，而是<strong>绝不让任何会被长期累积、或作为数值基准的变量使用低精度</strong>；前向计算尽量低精度，反向更新与状态一律高精度。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-14T13:59:22.626784+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-14T14:36:13.659587+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
 <h2><strong>一句话结论</strong></h2>
 <p>Transformer 使用 <strong>LayerNorm（层归一化）而不是 BatchNorm（批归一化）</strong>，是因为 Transformer 的计算是逐 token、支持变长序列，并高度依赖自注意力与自回归生成；而 BatchNorm 对 batch 维度和样本分布有强假设，在这些场景下不成立，甚至会破坏模型行为。</p>
 <hr />
@@ -551,7 +755,7 @@
 <hr />
 <h2><strong>总结</strong></h2>
 <p>Transformer 使用 LayerNorm 而不是 BatchNorm，并非经验选择，而是由其逐 token、自回归、变长序列和注意力驱动的计算范式所决定。LayerNorm 在特征维度上对单个样本独立归一化，保证了训练与推理的一致性、数值稳定性和模型行为的可控性，因此成为 Transformer 架构中的标准归一化方案。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T13:59:22.815986+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T14:36:13.816218+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
 <p>Prefix-Tuning 最早由 Li 和 Liang 在 2021 年提出，其核心思想是在不修改模型权重的前提下，通过在 Transformer 的注意力机制中引入可学习的前缀向量，引导模型在生成阶段表现出符合下游任务需求的行为。</p>
 <hr />
 <h2><strong>方法动机与提出背景</strong></h2>
@@ -636,7 +840,7 @@
 <h2><strong>总结</strong></h2>
 <p>Prefix-Tuning 通过在 Transformer 每一层注意力机制中引入可学习的前缀向量，在冻结模型参数的前提下，实现了对模型生成行为的有效引导。该方法在参数效率、稳定性与控制能力之间提供了一种折中方案，是参数高效微调技术体系中的重要组成部分。</p>
 <p>在现代大模型应用中，Prefix-Tuning 常与其他 PEFT 方法共同构成一条从“提示级控制”到“权重级适配”的连续技术路径。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T13:59:22.989320+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T14:36:13.932636+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
 <img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
 <hr />
 <h2><strong>注意力与 FFN 的职责分工</strong></h2>
@@ -712,7 +916,7 @@
 <h2><strong>总结</strong></h2>
 <p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
 <p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T13:59:23.148459+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T14:36:14.085006+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -838,7 +1042,7 @@
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T13:59:23.313921+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T14:36:14.242571+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -1037,7 +1241,7 @@
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T13:59:23.475521+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T14:36:14.393340+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -1426,7 +1630,7 @@
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T13:59:23.663292+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T14:36:14.579351+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -1696,7 +1900,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T13:59:23.833026+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T14:36:14.714927+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>

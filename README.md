@@ -13,11 +13,11 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
+- [什么是 KV Cache？](https://github.com/lihe/MyGitBlog/issues/11)--2025-12-14
 - [Transformer 在哪里做了权重共享？](https://github.com/lihe/MyGitBlog/issues/10)--2025-12-14
 - [混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？](https://github.com/lihe/MyGitBlog/issues/9)--2025-12-14
 - [为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？](https://github.com/lihe/MyGitBlog/issues/8)--2025-12-14
 - [Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法](https://github.com/lihe/MyGitBlog/issues/7)--2025-12-14
-- [Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络](https://github.com/lihe/MyGitBlog/issues/6)--2025-12-14
 ## LoRA
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
 ## MCP
@@ -27,6 +27,7 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 ## RAG
 - [从 RAG 到 GraphRAG，再到 LightRAG](https://github.com/lihe/MyGitBlog/issues/1)--2025-12-13
 ## Transformer
+- [什么是 KV Cache？](https://github.com/lihe/MyGitBlog/issues/11)--2025-12-14
 - [Transformer 在哪里做了权重共享？](https://github.com/lihe/MyGitBlog/issues/10)--2025-12-14
 - [为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？](https://github.com/lihe/MyGitBlog/issues/8)--2025-12-14
 - [Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络](https://github.com/lihe/MyGitBlog/issues/6)--2025-12-14
