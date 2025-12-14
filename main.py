@@ -223,33 +223,43 @@ def add_md_label(repo, md, me):
         ),
     )
 
+    # 先获取所有 issues，然后按标签分组（更可靠的方法）
+    all_issues = list(repo.get_issues(state="all"))
+    issues_by_label = {}
+    
+    for issue in all_issues:
+        if not issue or not is_me(issue, me) or issue.pull_request:
+            continue
+        # 获取 issue 的实际标签（确保是最新的）
+        issue_labels = [l.name for l in issue.labels]
+        for label_name in issue_labels:
+            if label_name not in issues_by_label:
+                issues_by_label[label_name] = []
+            issues_by_label[label_name].append(issue)
+
     with open(md, "a+", encoding="utf-8") as md:
         for label in labels:
             # we don't need add top label again
             if label.name in IGNORE_LABELS:
                 continue
 
-            issues = get_issues_from_label(repo, label)
-            if issues.totalCount:
+            # 从预分组的 issues 中获取该标签的 issues
+            valid_issues = issues_by_label.get(label.name, [])
+            
+            # 只有当有有效的 issues 时才写入类别
+            if valid_issues:
                 md.write("## " + label.name + "\n")
-                issues = sorted(issues, key=lambda x: x.created_at, reverse=True)
-            i = 0
-            for issue in issues:
-                if not issue:
-                    continue
-                if is_me(issue, me):
-                    # 验证 issue 是否确实包含当前标签
-                    issue_labels = [l.name for l in issue.labels]
-                    if label.name not in issue_labels:
-                        continue
+                valid_issues = sorted(valid_issues, key=lambda x: x.created_at, reverse=True)
+                i = 0
+                for issue in valid_issues:
                     if i == ANCHOR_NUMBER:
                         md.write("<details><summary>显示更多</summary>\n")
                         md.write("\n")
                     add_issue_info(issue, md)
                     i += 1
-            if i > ANCHOR_NUMBER:
-                md.write("</details>\n")
-                md.write("\n")
+                if i > ANCHOR_NUMBER:
+                    md.write("</details>\n")
+                    md.write("\n")
 
 
 def get_to_generate_issues(repo, dir_name, issue_number=None):
