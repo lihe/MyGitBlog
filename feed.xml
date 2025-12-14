@@ -1,5 +1,264 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T14:36:12.845305+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/11</id><title>什么是 KV Cache？</title><updated>2025-12-14T14:36:13.203098+00:00</updated><content type="html"><![CDATA[<p>在大语言模型的推理阶段，**KV Cache（Key-Value Cache）**几乎是不可或缺的基础机制。无论是 GPT、LLaMA、Qwen，还是各类推理框架（Transformers、vLLM、TensorRT-LLM），KV Cache 都直接决定了生成速度、显存占用以及系统吞吐能力。</p>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T15:15:56.357960+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/12</id><title>vLLM：为大模型在线推理而生的高性能引擎</title><updated>2025-12-14T15:15:56.668058+00:00</updated><content type="html"><![CDATA[<p>在真实的线上大模型服务中，推理瓶颈往往并不来自模型算力，而是来自<strong>显存管理与并发调度</strong>。</p>
+<p>vLLM 正是为解决这一问题而诞生的推理引擎。</p>
+<p>它并不是对 Transformer 结构的改写，而是一次<strong>面向系统层的工程重构</strong>。</p>
+<hr />
+<h2><strong>一、vLLM 要解决的核心问题</strong></h2>
+<p>在大规模 LLM 在线服务中，推理面临几个根本性挑战：</p>
+<ul>
+<li>
+<p><strong>KV Cache 占用巨大</strong></p>
+<p>KV Cache 随上下文长度线性增长，显存压力极高</p>
+</li>
+<li>
+<p><strong>请求长度高度不一致</strong></p>
+<p>长请求会拖垮短请求，batch 极易被打散</p>
+</li>
+<li>
+<p><strong>显存碎片严重</strong></p>
+<p>连续分配 KV Cache 容易导致 OOM</p>
+</li>
+<li>
+<p><strong>并发吞吐与 TTFT 难以兼顾</strong></p>
+<p>首 token 延迟（TTFT）与整体吞吐存在冲突</p>
+</li>
+</ul>
+<p>传统 transformers.generate() 的设计假设是：</p>
+<blockquote>
+<p>单请求或静态 batch</p>
+</blockquote>
+<p>这在实验环境中可行，但在高并发线上服务中几乎不可用。</p>
+<p>vLLM 的目标很明确：</p>
+<blockquote>
+<p><strong>在显存受限条件下，实现高并发、低延迟、高吞吐的大模型推理。</strong></p>
+</blockquote>
+<hr />
+<h2><strong>二、vLLM 的核心技术：Paged KV Cache（PagedAttention）</strong></h2>
+<h3><strong>1. 问题本质：KV Cache 的连续内存假设</strong></h3>
+<p>在标准自回归推理中：</p>
+<ul>
+<li>每个请求需要一块<strong>逻辑连续</strong>的 KV Cache</li>
+<li>KV Cache 随 token 生成不断增长</li>
+<li>GPU 显存需要提前或动态分配大块连续空间</li>
+</ul>
+<p>结果是：</p>
+<ul>
+<li>内存碎片严重</li>
+<li>长请求极易导致 OOM</li>
+<li>并发请求之间难以共存</li>
+</ul>
+<hr />
+<h3><strong>2. vLLM 的核心思想：像操作系统一样管理显存</strong></h3>
+<p>vLLM 引入 <strong>PagedAttention</strong>，其设计理念直接来自操作系统的<strong>虚拟内存机制</strong>：</p>
+<ul>
+<li>将 KV Cache 划分为固定大小的 <strong>page（block）</strong></li>
+<li>每个 page 存储固定数量的 token</li>
+<li>请求的 KV Cache 在逻辑上是连续的</li>
+<li>在物理显存中是<strong>非连续的</strong></li>
+</ul>
+<p>通过 <strong>page table</strong> 建立逻辑序列到物理 page 的映射关系。</p>
+<hr />
+<h3><strong>3. PagedAttention 带来的直接收益</strong></h3>
+<ul>
+<li>不再需要连续显存分配</li>
+<li>显存碎片大幅减少</li>
+<li>KV Cache 可动态分配、回收、复用</li>
+<li>长短请求可以安全共存</li>
+<li>并发请求规模显著提升</li>
+</ul>
+<blockquote>
+<p><strong>vLLM 的吞吐优势，核心来自 Paged KV Cache，而不是单纯的算子加速。</strong></p>
+</blockquote>
+<hr />
+<h2><strong>三、第二个关键技术：Continuous Batching（连续批处理）</strong></h2>
+<img width="888" height="490" alt="Image" src="https://github.com/user-attachments/assets/31720f3c-cdaa-49c4-a549-f5030502ab8e" />
+<h3><strong>1. 传统 Static Batching 的问题</strong></h3>
+<p>传统 batching 方式要求：</p>
+<ul>
+<li>请求同时到达</li>
+<li>序列长度对齐</li>
+<li>batch 在整个生成过程中保持不变</li>
+</ul>
+<p>现实中这几乎不成立：</p>
+<ul>
+<li>有的请求很快结束</li>
+<li>有的请求生成很长</li>
+<li>GPU 计算资源被频繁浪费</li>
+</ul>
+<hr />
+<h3><strong>2. vLLM 的解法：每一步动态重组 batch</strong></h3>
+<p>vLLM 使用 <strong>Continuous Batching</strong>：</p>
+<ul>
+<li>每一个 decoding step 都重新构建 batch</li>
+<li>新请求可以随时加入</li>
+<li>已完成请求立即移除</li>
+<li>batch 始终由“当前活跃请求”组成</li>
+</ul>
+<p>配合 KV Cache：</p>
+<ul>
+<li>Q 的计算可批量执行</li>
+<li>K / V 从各自的 page cache 中读取</li>
+</ul>
+<hr />
+<h3><strong>3. Continuous Batching 的效果</strong></h3>
+<ul>
+<li>GPU 利用率显著提高</li>
+<li>TTFT（首 token 延迟）降低</li>
+<li>并发吞吐最大化</li>
+<li>不再被最慢请求拖累</li>
+</ul>
+<hr />
+<h2><strong>四、Paged KV Cache × Continuous Batching 的协同效应</strong></h2>
+<p>这两项技术是<strong>强耦合设计</strong>：</p>
+<ul>
+<li>
+<p>Paged KV Cache：</p>
+<ul>
+<li>解决“显存怎么分配”</li>
+</ul>
+</li>
+<li>
+<p>Continuous Batching：</p>
+<ul>
+<li>解决“算力怎么用满”</li>
+</ul>
+</li>
+</ul>
+<p>只有两者结合，才能真正支撑：</p>
+<blockquote>
+<p><strong>高并发 + 长上下文 + 低延迟</strong></p>
+</blockquote>
+<p>这也是 vLLM 与传统推理框架的本质分界线。</p>
+<hr />
+<h2><strong>五、vLLM 的完整推理工作流程</strong></h2>
+<p>一个请求在 vLLM 中的生命周期如下：</p>
+<ol>
+<li>
+<p>请求到达 → 调度器接管</p>
+</li>
+<li>
+<p>为该请求分配 KV Cache pages</p>
+</li>
+<li>
+<p>请求进入活跃池</p>
+</li>
+<li>
+<p>每一个 decoding step：</p>
+<ul>
+<li>从活跃请求中动态组 batch</li>
+<li>从各自 page 中读取 KV Cache</li>
+<li>计算下一个 token</li>
+</ul>
+</li>
+<li>
+<p>请求结束：</p>
+<ul>
+<li>释放其 KV Cache pages</li>
+<li>立刻调度新的请求进入</li>
+</ul>
+</li>
+</ol>
+<p>整个过程没有“空 batch”，也没有“显存僵尸”。</p>
+<hr />
+<h2><strong>六、vLLM 的其他关键特性（工程加分点）</strong></h2>
+<ul>
+<li>
+<p><strong>支持 MQA / GQA</strong></p>
+<ul>
+<li>从模型结构层减少 KV Cache 体积</li>
+</ul>
+</li>
+<li>
+<p><strong>FlashAttention 集成</strong></p>
+<ul>
+<li>优化 attention 计算本身</li>
+</ul>
+</li>
+<li>
+<p><strong>Tensor Parallelism</strong></p>
+<ul>
+<li>将模型权重切分到多 GPU</li>
+</ul>
+</li>
+<li>
+<p><strong>流式输出</strong></p>
+<ul>
+<li>支持 token 级别返回，降低感知延迟</li>
+</ul>
+</li>
+<li>
+<p><strong>OpenAI-compatible API</strong></p>
+<ul>
+<li>可直接替换现有服务</li>
+</ul>
+</li>
+<li>
+<p><strong>HuggingFace 模型兼容</strong></p>
+<ul>
+<li>无需重新训练或改模型结构</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2><strong>七、vLLM vs HuggingFace Transformers</strong></h2>
+<table>
+<thead>
+<tr>
+<th><strong>维度</strong></th>
+<th><strong>HF Transformers</strong></th>
+<th><strong>vLLM</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KV Cache 管理</td>
+<td>连续分配</td>
+<td>分页管理</td>
+</tr>
+<tr>
+<td>Batching</td>
+<td>静态</td>
+<td>连续动态</td>
+</tr>
+<tr>
+<td>并发能力</td>
+<td>低</td>
+<td>高</td>
+</tr>
+<tr>
+<td>TTFT</td>
+<td>高</td>
+<td>低</td>
+</tr>
+<tr>
+<td>显存利用率</td>
+<td>差</td>
+<td>优</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>实验 / 单请求</td>
+<td>线上服务</td>
+</tr>
+</tbody></table><p>一句话总结：</p>
+<blockquote>
+<p><strong>HF 适合研究，vLLM 适合生产。</strong></p>
+</blockquote>
+<hr />
+<h2><strong>八、vLLM 的代价与边界</strong></h2>
+<p>vLLM 并不是万能的：</p>
+<ul>
+<li>专注于推理，不支持训练</li>
+<li>自定义模型 / 算子需要适配</li>
+<li>极端超长上下文仍受显存限制（需 offload）</li>
+</ul>
+<p>但在<strong>线上 LLM 服务场景</strong>，它几乎是当前的事实标准。</p>
+<hr />
+<h2><strong>总结</strong></h2>
+<p>vLLM 是一个为大模型在线推理而设计的高性能引擎，其核心创新在于 <strong>Paged KV Cache</strong> 和 <strong>Continuous Batching</strong>。</p>
+<p>它通过操作系统级的显存管理方式和动态调度机制，解决了传统 Transformer 推理在并发、显存碎片和吞吐上的根本瓶颈，显著提升了 GPU 利用率和系统整体性能。</p>
+<p><strong>vLLM 的价值不在模型，而在系统。</strong></p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/12"/><category term="Transformer"/><published>2025-12-14T15:15:29+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/11</id><title>什么是 KV Cache？</title><updated>2025-12-14T15:15:56.841068+00:00</updated><content type="html"><![CDATA[<p>在大语言模型的推理阶段，**KV Cache（Key-Value Cache）**几乎是不可或缺的基础机制。无论是 GPT、LLaMA、Qwen，还是各类推理框架（Transformers、vLLM、TensorRT-LLM），KV Cache 都直接决定了生成速度、显存占用以及系统吞吐能力。</p>
 <p>它并不是一个“模型结构创新”，而是一个<strong>严格由自回归推理范式推导出来的工程必然</strong>。</p>
 <hr />
 <h2><strong>一、KV Cache 要解决的根本问题</strong></h2>
@@ -203,7 +462,7 @@
 <p>KV Cache 是自回归 Transformer 推理中的核心优化机制，通过缓存历史 token 的 Key 和 Value，避免在每一步生成中重复计算注意力，使推理复杂度从近似 $O(t^2)$ 降为 $O(t)$。</p>
 <p>其代价是显存占用随上下文长度线性增长，因此在实际系统中通常会结合 MQA/GQA、Paged Cache、Offloading 等技术进行优化。</p>
 <p>KV Cache 并不是“可选项”，而是<strong>现代大模型推理能够落地的前提条件之一</strong>。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/11"/><category term="Transformer"/><published>2025-12-14T14:35:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2025-12-14T14:36:13.386661+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/11"/><category term="Transformer"/><published>2025-12-14T14:35:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2025-12-14T15:15:57.049265+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
 <p>不同于“层与层之间共享参数”的直觉理解，Transformer 的权重共享主要发生在<strong>位置维度和词表维度</strong>，而不是深度维度。理解这一点，是理解 Transformer 架构设计哲学的重要一步。</p>
 <hr />
 <h2><strong>一、什么是权重共享</strong></h2>
@@ -358,7 +617,7 @@
 <p>Transformer 的权重共享并不 hookup 在“层”这个维度上，而是集中体现在<strong>位置维度和词表维度</strong>。</p>
 <p>通过在所有 token 位置上共享 Attention 和 FFN 的参数，Transformer 实现了类似卷积的平移不变性，并得以支持任意长度序列建模；而通过共享输入与输出 embedding，则进一步提升了参数效率与语义一致性。</p>
 <p>这种共享策略并非工程折中，而是由序列建模与注意力机制的本质共同决定的结构选择。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-14T14:36:13.516711+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-14T15:15:57.221912+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
 <blockquote>
 <p><strong>参与梯度累积、数值范围敏感、长期状态的量 → 高精度</strong></p>
 </blockquote>
@@ -625,7 +884,7 @@
 <blockquote>
 <p>混合精度训练的核心不是“能不能用低精度”，而是<strong>绝不让任何会被长期累积、或作为数值基准的变量使用低精度</strong>；前向计算尽量低精度，反向更新与状态一律高精度。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-14T14:36:13.659587+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-14T15:15:57.380489+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
 <h2><strong>一句话结论</strong></h2>
 <p>Transformer 使用 <strong>LayerNorm（层归一化）而不是 BatchNorm（批归一化）</strong>，是因为 Transformer 的计算是逐 token、支持变长序列，并高度依赖自注意力与自回归生成；而 BatchNorm 对 batch 维度和样本分布有强假设，在这些场景下不成立，甚至会破坏模型行为。</p>
 <hr />
@@ -755,7 +1014,7 @@
 <hr />
 <h2><strong>总结</strong></h2>
 <p>Transformer 使用 LayerNorm 而不是 BatchNorm，并非经验选择，而是由其逐 token、自回归、变长序列和注意力驱动的计算范式所决定。LayerNorm 在特征维度上对单个样本独立归一化，保证了训练与推理的一致性、数值稳定性和模型行为的可控性，因此成为 Transformer 架构中的标准归一化方案。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T14:36:13.816218+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T15:15:57.543915+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
 <p>Prefix-Tuning 最早由 Li 和 Liang 在 2021 年提出，其核心思想是在不修改模型权重的前提下，通过在 Transformer 的注意力机制中引入可学习的前缀向量，引导模型在生成阶段表现出符合下游任务需求的行为。</p>
 <hr />
 <h2><strong>方法动机与提出背景</strong></h2>
@@ -840,7 +1099,7 @@
 <h2><strong>总结</strong></h2>
 <p>Prefix-Tuning 通过在 Transformer 每一层注意力机制中引入可学习的前缀向量，在冻结模型参数的前提下，实现了对模型生成行为的有效引导。该方法在参数效率、稳定性与控制能力之间提供了一种折中方案，是参数高效微调技术体系中的重要组成部分。</p>
 <p>在现代大模型应用中，Prefix-Tuning 常与其他 PEFT 方法共同构成一条从“提示级控制”到“权重级适配”的连续技术路径。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T14:36:13.932636+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T15:15:57.677754+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
 <img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
 <hr />
 <h2><strong>注意力与 FFN 的职责分工</strong></h2>
@@ -916,7 +1175,7 @@
 <h2><strong>总结</strong></h2>
 <p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
 <p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T14:36:14.085006+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T15:15:57.812232+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -1042,7 +1301,7 @@
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T14:36:14.242571+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T15:15:57.988010+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -1241,7 +1500,7 @@
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T14:36:14.393340+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T15:15:58.193273+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -1630,7 +1889,7 @@
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T14:36:14.579351+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T15:15:58.378596+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -1900,7 +2159,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T14:36:14.714927+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T15:15:58.561614+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
