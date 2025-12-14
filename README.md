@@ -28,5 +28,6 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 - [从 RAG 到 GraphRAG，再到 LightRAG](https://github.com/lihe/MyGitBlog/issues/1)--2025-12-13
 ## Transformer
 - [Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络](https://github.com/lihe/MyGitBlog/issues/6)--2025-12-14
+## 微调
 - [Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法](https://github.com/lihe/MyGitBlog/issues/7)--2025-12-14
 - [P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析](https://github.com/lihe/MyGitBlog/issues/5)--2025-12-13
