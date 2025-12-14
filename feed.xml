@@ -1,5 +1,135 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T04:46:56.348954+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T04:46:56.808807+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-14T10:30:59.835487+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-14T10:31:00.225688+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
+<h2><strong>一句话结论</strong></h2>
+<p>Transformer 使用 <strong>LayerNorm（层归一化）而不是 BatchNorm（批归一化）</strong>，是因为 Transformer 的计算是逐 token、支持变长序列，并高度依赖自注意力与自回归生成；而 BatchNorm 对 batch 维度和样本分布有强假设，在这些场景下不成立，甚至会破坏模型行为。</p>
+<hr />
+<img width="368" height="401" alt="Image" src="https://github.com/user-attachments/assets/65e23d8d-3ce4-4d23-8f5b-7791573a1b91" />
+<h2><strong>一、BatchNorm 的设计前提</strong></h2>
+<p>BatchNorm 在提出时，隐含了几个关键假设：</p>
+<p><strong>1. 样本是同构的</strong></p>
+<p>同一层中，不同样本在同一维度上具有一致语义含义；第 <em>i</em> 个通道在 batch 内代表“同一种特征”。</p>
+<p><strong>2. batch size 足够大</strong></p>
+<p>BatchNorm 的均值和方差依赖 batch 内统计，小 batch 会导致估计噪声显著。</p>
+<p><strong>3. 样本顺序不重要</strong></p>
+<p>BatchNorm 在 batch 维度上聚合统计信息，不区分样本先后或结构角色。</p>
+<p>这些假设在 CNN 中通常成立，但在 Transformer 中几乎全部失效。</p>
+<hr />
+<h2><strong>二、Transformer 的计算范式与 BatchNorm 的冲突</strong></h2>
+<h3><strong>1. Transformer 是逐 token（token-wise）建模</strong></h3>
+<p>在 Transformer 中：</p>
+<ul>
+<li>每个 token 是一个独立的语义单元</li>
+<li>不同位置的 token 具有不同语义角色与分布特性</li>
+</ul>
+<p>如果对 batch 内所有 token 使用 BatchNorm，相当于将：</p>
+<blockquote>
+<p>句首词、句中词、句尾词</p>
+</blockquote>
+<blockquote>
+<p>当作同一分布进行归一化</p>
+</blockquote>
+<p>这在语言建模的语义层面并不成立。</p>
+<hr />
+<h3><strong>2. 序列是变长的</strong></h3>
+<p>Transformer 天然支持变长序列，并通过 padding + mask 处理不等长输入。</p>
+<p>但 BatchNorm 并不知道哪些位置是 padding：</p>
+<ul>
+<li>padding 会参与 batch 统计</li>
+<li>均值与方差会随 padding 比例变化</li>
+</ul>
+<p>结果是：<strong>同一句话在不同 batch 中的归一化结果可能不同</strong>，破坏模型一致性。</p>
+<hr />
+<h3><strong>3. 自回归生成场景下 BatchNorm 几乎不可用</strong></h3>
+<p>在 GPT、LLaMA 等自回归模型中：</p>
+<ul>
+<li>推理时 batch size 通常为 1</li>
+<li>token 逐步生成</li>
+</ul>
+<p>此时 BatchNorm 的 batch 统计毫无意义，且训练与推理行为不一致，这对语言模型是致命问题。</p>
+<hr />
+<h2><strong>三、LayerNorm 与 Transformer 的天然匹配</strong></h2>
+<p>LayerNorm 的归一化方式是：</p>
+<p>$\text{LN}(x) = \frac{x - \mu_{\text{feature}}}{\sigma_{\text{feature}}}$</p>
+<p>其统计方式具有以下特性：</p>
+<ul>
+<li>在<strong>单个样本内部</strong>计算</li>
+<li>沿<strong>特征维度</strong>归一化</li>
+<li>不依赖 batch</li>
+</ul>
+<h3><strong>LayerNorm 的关键优势</strong></h3>
+<p><strong>1. 与 batch size 无关</strong></p>
+<p>batch size = 1 时仍然稳定，训练与推理行为一致。</p>
+<p><strong>2. 逐 token 独立</strong></p>
+<p>每个 token 仅基于自身特征归一化，不受其他 token 或样本干扰。</p>
+<p><strong>3. 天然支持变长序列</strong></p>
+<p>mask 与 padding 不会污染统计结果。</p>
+<p>这正是 Transformer 所需要的归一化方式。</p>
+<hr />
+<h2><strong>四、注意力机制决定了不能使用 BatchNorm</strong></h2>
+<p>自注意力的核心计算为：</p>
+<p>$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d}}\right)V$</p>
+<p>注意力机制对<strong>数值尺度极其敏感</strong>，而 softmax 会进一步放大分布变化。</p>
+<p>如果使用 BatchNorm：</p>
+<ul>
+<li>不同 batch 的统计不同</li>
+<li>同一 token 在不同 batch 中的 attention 权重可能不同</li>
+</ul>
+<p>这会导致模型行为不可控、训练不稳定。</p>
+<p>LayerNorm 则保证：</p>
+<p><strong>一个 token 的注意力行为仅由其自身和上下文决定，而不受 batch 中其他样本影响。</strong></p>
+<hr />
+<h2><strong>五、工程视角：BatchNorm 会破坏可复现性</strong></h2>
+<p>BatchNorm 引入了：</p>
+<ul>
+<li>batch 依赖</li>
+<li>运行时统计漂移</li>
+<li>train / eval 模式切换</li>
+</ul>
+<p>而 Transformer 的设计目标是：</p>
+<ul>
+<li>稳定</li>
+<li>可扩展</li>
+<li>易并行</li>
+<li>高可复现性</li>
+</ul>
+<p>LayerNorm 不依赖 running statistics，在分布式训练和超大模型场景下更可靠。这也是为什么几乎所有成功的 Transformer 变体都采用 LayerNorm 或其改进形式。</p>
+<hr />
+<h2><strong>六、LayerNorm 在大模型中的进一步演化</strong></h2>
+<p>在大语言模型中，LayerNorm 甚至被进一步简化或重构：</p>
+<ul>
+<li>
+<p><strong>RMSNorm（LLaMA、GPT-NeoX）</strong></p>
+<ul>
+<li>不减均值，仅做方差归一</li>
+<li>更快、更稳定</li>
+</ul>
+</li>
+<li>
+<p><strong>Pre-LN Transformer</strong></p>
+<ul>
+<li>将 LayerNorm 放在子层之前</li>
+<li>显著缓解深层网络的训练不稳定问题</li>
+</ul>
+</li>
+</ul>
+<p>这表明：<strong>归一化方式在 Transformer 中是结构核心，而非附属组件。</strong></p>
+<hr />
+<h2><strong>七、一个直观的类比</strong></h2>
+<ul>
+<li>
+<p>BatchNorm：</p>
+<p>“你这道题做得好不好，要参考全班平均水平”</p>
+</li>
+<li>
+<p>LayerNorm：</p>
+<p>“你这道题做得好不好，只取决于你自己的解题结构”</p>
+</li>
+</ul>
+<p>语言建模显然需要后者。</p>
+<hr />
+<h2><strong>总结</strong></h2>
+<p>Transformer 使用 LayerNorm 而不是 BatchNorm，并非经验选择，而是由其逐 token、自回归、变长序列和注意力驱动的计算范式所决定。LayerNorm 在特征维度上对单个样本独立归一化，保证了训练与推理的一致性、数值稳定性和模型行为的可控性，因此成为 Transformer 架构中的标准归一化方案。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-14T10:31:00.387133+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
 <p>Prefix-Tuning 最早由 Li 和 Liang 在 2021 年提出，其核心思想是在不修改模型权重的前提下，通过在 Transformer 的注意力机制中引入可学习的前缀向量，引导模型在生成阶段表现出符合下游任务需求的行为。</p>
 <hr />
 <h2><strong>方法动机与提出背景</strong></h2>
@@ -84,7 +214,7 @@
 <h2><strong>总结</strong></h2>
 <p>Prefix-Tuning 通过在 Transformer 每一层注意力机制中引入可学习的前缀向量，在冻结模型参数的前提下，实现了对模型生成行为的有效引导。该方法在参数效率、稳定性与控制能力之间提供了一种折中方案，是参数高效微调技术体系中的重要组成部分。</p>
 <p>在现代大模型应用中，Prefix-Tuning 常与其他 PEFT 方法共同构成一条从“提示级控制”到“权重级适配”的连续技术路径。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T04:46:57.048258+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-14T10:31:00.576861+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
 <img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
 <hr />
 <h2><strong>注意力与 FFN 的职责分工</strong></h2>
@@ -160,7 +290,7 @@
 <h2><strong>总结</strong></h2>
 <p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
 <p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T04:46:57.279257+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-14T10:31:00.693712+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -286,7 +416,7 @@
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T04:46:57.510730+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-14T10:31:00.849373+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -485,7 +615,7 @@
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T04:46:57.776520+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-14T10:31:01.017626+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -874,7 +1004,7 @@
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T04:46:58.061410+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-14T10:31:01.209832+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -1144,7 +1274,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T04:46:58.274804+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-14T10:31:01.419430+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
