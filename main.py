@@ -238,6 +238,10 @@ def add_md_label(repo, md, me):
                 if not issue:
                     continue
                 if is_me(issue, me):
+                    # 验证 issue 是否确实包含当前标签
+                    issue_labels = [l.name for l in issue.labels]
+                    if label.name not in issue_labels:
+                        continue
                     if i == ANCHOR_NUMBER:
                         md.write("<details><summary>显示更多</summary>\n")
                         md.write("\n")
