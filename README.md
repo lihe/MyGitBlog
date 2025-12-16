@@ -13,11 +13,11 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
+- [WordPiece Tokenization：从概率视角理解子词分词算法](https://github.com/lihe/MyGitBlog/issues/14)--2025-12-16
 - [RMSNorm：为什么大语言模型开始放弃 LayerNorm？](https://github.com/lihe/MyGitBlog/issues/13)--2025-12-16
 - [vLLM：为大模型在线推理而生的高性能引擎](https://github.com/lihe/MyGitBlog/issues/12)--2025-12-14
 - [什么是 KV Cache？](https://github.com/lihe/MyGitBlog/issues/11)--2025-12-14
 - [Transformer 在哪里做了权重共享？](https://github.com/lihe/MyGitBlog/issues/10)--2025-12-14
-- [混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？](https://github.com/lihe/MyGitBlog/issues/9)--2025-12-14
 ## LoRA
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
 ## MCP
