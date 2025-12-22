@@ -1,5 +1,173 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-17T07:37:45.907410+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/15</id><title>SwiGLU 激活函数：为什么现代大语言模型的 FFN 都在用它？</title><updated>2025-12-17T07:37:46.406785+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 结构中，<strong>前馈网络（FFN）承担了几乎全部的非线性建模能力</strong>。</p>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2025-12-22T14:14:47.361711+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/16</id><title>从 SGD 到 Adam：深度学习优化算法的原理与工程实践</title><updated>2025-12-22T14:14:47.765484+00:00</updated><content type="html"><![CDATA[<p>在科研与工程中，<strong>大量问题都可以抽象为一个目标函数的最小化问题</strong>。</p>
+<p>深度学习也不例外——模型训练的本质，就是在高维参数空间中寻找一个使损失函数最小的点。</p>
+<p>正如吴恩达老师常用的比喻：</p>
+<blockquote>
+<p>梯度下降（Gradient Descent）就像一个人站在高山上，每一步都沿着当前最陡的方向，尽可能快地跑向山谷的最低点。</p>
+</blockquote>
+<p>围绕这个直觉，过去十多年里，优化算法经历了一条清晰的演进路线：</p>
+<p><strong>SGD → Momentum → AdaGrad / RMSProp → Adam → AdamW</strong></p>
+<hr />
+<h2><strong>一、随机梯度下降（SGD）：一切的起点</strong></h2>
+<h3><strong>1. 基本思想</strong></h3>
+<p>设参数为 $\theta$，第 t 步的梯度为 $g_t = \nabla_\theta L(\theta_t)$，</p>
+<p>SGD 的更新规则是：</p>
+<p>$\theta_{t+1} = \theta_t - \alpha g_t$</p>
+<p>其中 $\alpha$ 是学习率。</p>
+<p>SGD 的优势在于：</p>
+<ul>
+<li>形式简单</li>
+<li>计算与内存开销低</li>
+<li>在大规模数据上可扩展</li>
+</ul>
+<h3><strong>2. Mini-batch SGD</strong></h3>
+<p>实际训练中通常采用 mini-batch：</p>
+<ul>
+<li>用一小批样本估计梯度</li>
+<li>在噪声中前进，反而有助于跳出局部极小值</li>
+</ul>
+<p>但 <strong>SGD 也有明显问题</strong>：</p>
+<ol>
+<li>学习率难以选择</li>
+<li>所有参数共享同一个学习率</li>
+<li>梯度噪声大、收敛慢</li>
+<li>在高度非凸问题中易震荡或卡在鞍点附近</li>
+</ol>
+<hr />
+<h2><strong>二、Momentum：给梯度“加惯性”</strong></h2>
+<h3><strong>1. 核心思想</strong></h3>
+<p>Momentum 引入“速度”的概念，让更新方向具有惯性：</p>
+<p>$v_t = \mu v_{t-1} + g_t$</p>
+<p>$\theta_{t+1} = \theta_t - \alpha v_t$</p>
+<p>直觉上：</p>
+<ul>
+<li>梯度方向一致 → 加速前进</li>
+<li>梯度来回震荡 → 自动平滑</li>
+</ul>
+<p>Momentum 能显著提升 SGD 的收敛速度和稳定性。</p>
+<hr />
+<h2><strong>三、自适应学习率的尝试：AdaGrad 与 RMSProp</strong></h2>
+<h3><strong>1. AdaGrad：为每个参数分配学习率</strong></h3>
+<p>AdaGrad 的关键思想是：</p>
+<blockquote>
+<p><strong>频繁更新的参数，步子走小一点；</strong></p>
+</blockquote>
+<blockquote>
+<p><strong>稀疏更新的参数，步子走大一点。</strong></p>
+</blockquote>
+<p>更新规则（按元素）：</p>
+<p>$\theta_{t+1,i} = \theta_{t,i} - \frac{\alpha}{\sqrt{\sum_{k=1}^t g_{k,i}^2 + \epsilon}} g_{t,i}$</p>
+<p><strong>优点</strong></p>
+<ul>
+<li>对稀疏特征非常友好（如 NLP）</li>
+</ul>
+<p><strong>致命缺点</strong></p>
+<ul>
+<li>梯度平方不断累积</li>
+<li>学习率单调衰减，后期几乎停止学习</li>
+</ul>
+<hr />
+<h3><strong>2. RMSProp：修复 AdaGrad 的“学习率过早衰减”</strong></h3>
+<p>RMSProp 用 <strong>指数移动平均</strong> 替代累计和：</p>
+<p>$v_t = \gamma v_{t-1} + (1-\gamma) g_t^2$</p>
+<p>$\theta_{t+1} = \theta_t - \frac{\alpha}{\sqrt{v_t} + \epsilon} g_t$</p>
+<p><strong>优势</strong></p>
+<ul>
+<li>能适应非平稳目标函数</li>
+<li>在实践中比 AdaGrad 稳定得多</li>
+</ul>
+<p>RMSProp 是 Adam 的直接前身。</p>
+<hr />
+<h2><strong>四、Adam：Momentum + RMSProp 的结合</strong></h2>
+<h3><strong>1. 一句话定义</strong></h3>
+<p><strong>Adam 是一种同时利用梯度的一阶矩（均值）和二阶矩（方差）进行自适应更新的优化器。</strong></p>
+<hr />
+<h3><strong>2. 核心思想</strong></h3>
+<p>Adam 同时解决两个问题：</p>
+<ol>
+<li>梯度方向是否稳定？ → Momentum</li>
+<li>不同参数尺度差异大怎么办？ → 自适应学习率</li>
+</ol>
+<hr />
+<h3><strong>3. 数学形式</strong></h3>
+<p>设第 t 步梯度为 $g_t$</p>
+<p><strong>一阶矩（均值）</strong></p>
+<p>$m_t = \beta_1 m_{t-1} + (1-\beta_1) g_t$</p>
+<p><strong>二阶矩（方差）</strong></p>
+<p>$v_t = \beta_2 v_{t-1} + (1-\beta_2) g_t^2$</p>
+<p>由于初始化为 0，需要偏置校正：</p>
+<p>$\hat{m}_t = \frac{m_t}{1-\beta_1^t}, \quad \hat{v}_t = \frac{v_t}{1-\beta_2^t}$</p>
+<p>最终更新：</p>
+<p>$\theta_{t+1} = \theta_t - \alpha \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon}$</p>
+<hr />
+<h3><strong>4. 直觉理解</strong></h3>
+<ul>
+<li>
+<p>$m_t$：最近梯度的大方向</p>
+</li>
+<li>
+<p>$v_t$：这个方向抖不抖</p>
+</li>
+<li>
+<p>更新规则：</p>
+<ul>
+<li>方向稳定 → 步子大</li>
+<li>波动剧烈 → 步子小</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h2><strong>五、为什么 Adam 如此流行？</strong></h2>
+<p><strong>工程优势非常明显：</strong></p>
+<ul>
+<li>收敛快</li>
+<li>对学习率不敏感</li>
+<li>适合稀疏梯度</li>
+<li>训练初期非常稳定</li>
+</ul>
+<p>因此在实践中：</p>
+<blockquote>
+<p><strong>Adam 是深度学习的默认优化器。</strong></p>
+</blockquote>
+<hr />
+<h2><strong>六、Adam 的问题：为什么还不够？</strong></h2>
+<h3><strong>1. 泛化性能问题</strong></h3>
+<p>多项研究发现：</p>
+<ul>
+<li>Adam 更容易收敛到 sharp minima</li>
+<li>在一些视觉 / 结构化任务上泛化不如 SGD + Momentum</li>
+</ul>
+<h3><strong>2. 权重衰减实现不合理（关键问题）</strong></h3>
+<p>原始 Adam 将 L2 正则直接加到梯度上：</p>
+<p>$g_t \leftarrow g_t + \lambda \theta$</p>
+<p>这会与 Adam 的自适应缩放发生耦合，<strong>破坏优化行为</strong>。</p>
+<hr />
+<h2><strong>七、AdamW：工程上的事实标准</strong></h2>
+<p>AdamW 将 <strong>权重衰减与梯度更新解耦</strong>：</p>
+<p>$\theta \leftarrow \theta - \alpha \frac{\hat{m}_t}{\sqrt{\hat{v}_t}} - \alpha \lambda \theta$</p>
+<p>优势：</p>
+<ul>
+<li>更清晰的超参数语义</li>
+<li>更好的泛化表现</li>
+</ul>
+<p><strong>现代大模型几乎清一色使用 AdamW。</strong></p>
+<hr />
+<h2><strong>八、常见超参数</strong></h2>
+<p>默认值（可以直接说）：</p>
+<ul>
+<li>learning rate：1e-3（大模型常用 1e-4 / 1e-5）</li>
+<li>$\beta_1$ = 0.9</li>
+<li>$\beta_2$ = 0.999</li>
+<li>$\epsilon$ = 1e-8</li>
+</ul>
+<p>工程经验：</p>
+<ul>
+<li>大模型中常适当降低 $\beta_2$ 提升响应速度</li>
+</ul>
+<hr />
+<h2><strong>九、一句话总结</strong></h2>
+<p>Adam 是一种通过估计梯度一阶矩和二阶矩来自适应调整学习率的优化器，结合了 Momentum 和 RMSProp 的优点，具有收敛快、稳定性好的特点。在实际工程中通常使用 AdamW，以正确实现权重衰减并获得更好的泛化性能。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/16"/><published>2025-12-22T14:14:15+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/15</id><title>SwiGLU 激活函数：为什么现代大语言模型的 FFN 都在用它？</title><updated>2025-12-22T14:14:47.955418+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 结构中，<strong>前馈网络（FFN）承担了几乎全部的非线性建模能力</strong>。</p>
 <p>当模型规模从千万级走向百亿、千亿级后，激活函数不再只是“有没有非线性”的问题，而是：</p>
 <blockquote>
 <p><strong>能否在稳定训练的同时，提升表达能力与参数效率。</strong></p>
@@ -189,7 +357,7 @@
 <blockquote>
 <p><strong>现代大语言模型的 FFN，基本都采用 SwiGLU 或其变体。</strong></p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/15"/><category term="Transformer"/><published>2025-12-17T07:37:14+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/14</id><title>WordPiece Tokenization：从概率视角理解子词分词算法</title><updated>2025-12-17T07:37:46.622705+00:00</updated><content type="html"><![CDATA[<p>在大语言模型出现之前，<strong>Tokenizer 的设计</strong>就已经深刻影响着模型的上限。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/15"/><category term="Transformer"/><published>2025-12-17T07:37:14+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/14</id><title>WordPiece Tokenization：从概率视角理解子词分词算法</title><updated>2025-12-22T14:14:48.134035+00:00</updated><content type="html"><![CDATA[<p>在大语言模型出现之前，<strong>Tokenizer 的设计</strong>就已经深刻影响着模型的上限。</p>
 <p>WordPiece，正是子词分词算法发展史中一个<strong>非常关键、但常被简化理解的节点</strong>。</p>
 <p>它不仅仅是“BERT 用的分词器”，而是一种<strong>明确以语言模型概率为目标函数的子词学习方法</strong>。</p>
 <hr />
@@ -388,7 +556,7 @@
 <hr />
 <h2><strong>最终总结</strong></h2>
 <p>WordPiece 是一种基于语言模型概率的子词分词算法，通过在训练阶段选择能最大化语料整体似然的子词合并方式，在词表规模与 OOV 问题之间取得平衡。它生成的子词通常具有更稳定的语言学意义，被广泛应用于 BERT 等模型中。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/14"/><published>2025-12-16T03:27:46+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/13</id><title>RMSNorm：为什么大语言模型开始放弃 LayerNorm？</title><updated>2025-12-17T07:37:46.823071+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总结</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/14"/><published>2025-12-16T03:27:46+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/13</id><title>RMSNorm：为什么大语言模型开始放弃 LayerNorm？</title><updated>2025-12-22T14:14:48.352507+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总结</strong></h2>
 <p><strong>RMSNorm 是一种不做均值中心化、只按均方根缩放特征向量的归一化方法，相比 LayerNorm 计算更简单、参数更少、数值更稳定，因此在深层 Transformer 和大语言模型中更合适。</strong></p>
 <p>关键词：</p>
 <ul>
@@ -534,7 +702,7 @@ x → Norm → FFN → + x
 <hr />
 <h2><strong>最终总结</strong></h2>
 <p>RMSNorm 是一种简化的归一化方法，只通过均方根对特征向量进行尺度归一化，不进行均值中心化。相比 LayerNorm，它计算更高效、参数更少，并在深层 Transformer 和大语言模型中表现出更好的数值稳定性，因此逐渐成为 LLM 架构中的标准选择。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/13"/><category term="Transformer"/><published>2025-12-16T02:35:23+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/12</id><title>vLLM：为大模型在线推理而生的高性能引擎</title><updated>2025-12-17T07:37:47.013665+00:00</updated><content type="html"><![CDATA[<p>在真实的线上大模型服务中，推理瓶颈往往并不来自模型算力，而是来自<strong>显存管理与并发调度</strong>。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/13"/><category term="Transformer"/><published>2025-12-16T02:35:23+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/12</id><title>vLLM：为大模型在线推理而生的高性能引擎</title><updated>2025-12-22T14:14:48.591741+00:00</updated><content type="html"><![CDATA[<p>在真实的线上大模型服务中，推理瓶颈往往并不来自模型算力，而是来自<strong>显存管理与并发调度</strong>。</p>
 <p>vLLM 正是为解决这一问题而诞生的推理引擎。</p>
 <p>它并不是对 Transformer 结构的改写，而是一次<strong>面向系统层的工程重构</strong>。</p>
 <hr />
@@ -793,7 +961,7 @@ x → Norm → FFN → + x
 <p>vLLM 是一个为大模型在线推理而设计的高性能引擎，其核心创新在于 <strong>Paged KV Cache</strong> 和 <strong>Continuous Batching</strong>。</p>
 <p>它通过操作系统级的显存管理方式和动态调度机制，解决了传统 Transformer 推理在并发、显存碎片和吞吐上的根本瓶颈，显著提升了 GPU 利用率和系统整体性能。</p>
 <p><strong>vLLM 的价值不在模型，而在系统。</strong></p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/12"/><category term="Transformer"/><published>2025-12-14T15:15:29+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/11</id><title>什么是 KV Cache？</title><updated>2025-12-17T07:37:47.217424+00:00</updated><content type="html"><![CDATA[<p>在大语言模型的推理阶段，**KV Cache（Key-Value Cache）**几乎是不可或缺的基础机制。无论是 GPT、LLaMA、Qwen，还是各类推理框架（Transformers、vLLM、TensorRT-LLM），KV Cache 都直接决定了生成速度、显存占用以及系统吞吐能力。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/12"/><category term="Transformer"/><published>2025-12-14T15:15:29+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/11</id><title>什么是 KV Cache？</title><updated>2025-12-22T14:14:48.808569+00:00</updated><content type="html"><![CDATA[<p>在大语言模型的推理阶段，**KV Cache（Key-Value Cache）**几乎是不可或缺的基础机制。无论是 GPT、LLaMA、Qwen，还是各类推理框架（Transformers、vLLM、TensorRT-LLM），KV Cache 都直接决定了生成速度、显存占用以及系统吞吐能力。</p>
 <p>它并不是一个“模型结构创新”，而是一个<strong>严格由自回归推理范式推导出来的工程必然</strong>。</p>
 <hr />
 <h2><strong>一、KV Cache 要解决的根本问题</strong></h2>
@@ -997,7 +1165,7 @@ x → Norm → FFN → + x
 <p>KV Cache 是自回归 Transformer 推理中的核心优化机制，通过缓存历史 token 的 Key 和 Value，避免在每一步生成中重复计算注意力，使推理复杂度从近似 $O(t^2)$ 降为 $O(t)$。</p>
 <p>其代价是显存占用随上下文长度线性增长，因此在实际系统中通常会结合 MQA/GQA、Paged Cache、Offloading 等技术进行优化。</p>
 <p>KV Cache 并不是“可选项”，而是<strong>现代大模型推理能够落地的前提条件之一</strong>。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/11"/><category term="Transformer"/><published>2025-12-14T14:35:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2025-12-17T07:37:47.407375+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/11"/><category term="Transformer"/><published>2025-12-14T14:35:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2025-12-22T14:14:49.016435+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
 <p>不同于“层与层之间共享参数”的直觉理解，Transformer 的权重共享主要发生在<strong>位置维度和词表维度</strong>，而不是深度维度。理解这一点，是理解 Transformer 架构设计哲学的重要一步。</p>
 <hr />
 <h2><strong>一、什么是权重共享</strong></h2>
@@ -1152,7 +1320,7 @@ x → Norm → FFN → + x
 <p>Transformer 的权重共享并不 hookup 在“层”这个维度上，而是集中体现在<strong>位置维度和词表维度</strong>。</p>
 <p>通过在所有 token 位置上共享 Attention 和 FFN 的参数，Transformer 实现了类似卷积的平移不变性，并得以支持任意长度序列建模；而通过共享输入与输出 embedding，则进一步提升了参数效率与语义一致性。</p>
 <p>这种共享策略并非工程折中，而是由序列建模与注意力机制的本质共同决定的结构选择。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-17T07:37:47.618188+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2025-12-22T14:14:49.220663+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
 <blockquote>
 <p><strong>参与梯度累积、数值范围敏感、长期状态的量 → 高精度</strong></p>
 </blockquote>
@@ -1419,7 +1587,7 @@ x → Norm → FFN → + x
 <blockquote>
 <p>混合精度训练的核心不是“能不能用低精度”，而是<strong>绝不让任何会被长期累积、或作为数值基准的变量使用低精度</strong>；前向计算尽量低精度，反向更新与状态一律高精度。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-17T07:37:47.795131+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2025-12-22T14:14:49.411592+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
 <h2><strong>一句话结论</strong></h2>
 <p>Transformer 使用 <strong>LayerNorm（层归一化）而不是 BatchNorm（批归一化）</strong>，是因为 Transformer 的计算是逐 token、支持变长序列，并高度依赖自注意力与自回归生成；而 BatchNorm 对 batch 维度和样本分布有强假设，在这些场景下不成立，甚至会破坏模型行为。</p>
 <hr />
@@ -1549,7 +1717,7 @@ x → Norm → FFN → + x
 <hr />
 <h2><strong>总结</strong></h2>
 <p>Transformer 使用 LayerNorm 而不是 BatchNorm，并非经验选择，而是由其逐 token、自回归、变长序列和注意力驱动的计算范式所决定。LayerNorm 在特征维度上对单个样本独立归一化，保证了训练与推理的一致性、数值稳定性和模型行为的可控性，因此成为 Transformer 架构中的标准归一化方案。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-17T07:37:47.972367+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2025-12-22T14:14:49.608544+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
 <p>Prefix-Tuning 最早由 Li 和 Liang 在 2021 年提出，其核心思想是在不修改模型权重的前提下，通过在 Transformer 的注意力机制中引入可学习的前缀向量，引导模型在生成阶段表现出符合下游任务需求的行为。</p>
 <hr />
 <h2><strong>方法动机与提出背景</strong></h2>
@@ -1634,7 +1802,7 @@ x → Norm → FFN → + x
 <h2><strong>总结</strong></h2>
 <p>Prefix-Tuning 通过在 Transformer 每一层注意力机制中引入可学习的前缀向量，在冻结模型参数的前提下，实现了对模型生成行为的有效引导。该方法在参数效率、稳定性与控制能力之间提供了一种折中方案，是参数高效微调技术体系中的重要组成部分。</p>
 <p>在现代大模型应用中，Prefix-Tuning 常与其他 PEFT 方法共同构成一条从“提示级控制”到“权重级适配”的连续技术路径。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-17T07:37:48.215640+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2025-12-22T14:14:49.803453+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
 <img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
 <hr />
 <h2><strong>注意力与 FFN 的职责分工</strong></h2>
@@ -1710,7 +1878,7 @@ x → Norm → FFN → + x
 <h2><strong>总结</strong></h2>
 <p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
 <p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-17T07:37:48.378929+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2025-12-22T14:14:49.992982+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -1836,7 +2004,7 @@ x → Norm → FFN → + x
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-17T07:37:48.554492+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2025-12-22T14:14:50.161703+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -2035,7 +2203,7 @@ x → Norm → FFN → + x
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-17T07:37:48.743731+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2025-12-22T14:14:50.377423+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -2424,7 +2592,7 @@ x → Norm → FFN → + x
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-17T07:37:48.942629+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2025-12-22T14:14:50.591161+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -2694,7 +2862,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-17T07:37:49.124690+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2025-12-22T14:14:50.764501+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
