@@ -13,11 +13,11 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
+- [多标签分类（Multi-label Classification）](https://github.com/lihe/MyGitBlog/issues/17)--2026-03-01
 - [从 SGD 到 Adam：深度学习优化算法的原理与工程实践](https://github.com/lihe/MyGitBlog/issues/16)--2025-12-22
 - [SwiGLU 激活函数：为什么现代大语言模型的 FFN 都在用它？](https://github.com/lihe/MyGitBlog/issues/15)--2025-12-17
 - [WordPiece Tokenization：从概率视角理解子词分词算法](https://github.com/lihe/MyGitBlog/issues/14)--2025-12-16
 - [RMSNorm：为什么大语言模型开始放弃 LayerNorm？](https://github.com/lihe/MyGitBlog/issues/13)--2025-12-16
-- [vLLM：为大模型在线推理而生的高性能引擎](https://github.com/lihe/MyGitBlog/issues/12)--2025-12-14
 ## LoRA
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
 ## MCP
@@ -42,3 +42,5 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 - [混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？](https://github.com/lihe/MyGitBlog/issues/9)--2025-12-14
 - [Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法](https://github.com/lihe/MyGitBlog/issues/7)--2025-12-14
 - [P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析](https://github.com/lihe/MyGitBlog/issues/5)--2025-12-13
+## 面试
+- [多标签分类（Multi-label Classification）](https://github.com/lihe/MyGitBlog/issues/17)--2026-03-01
