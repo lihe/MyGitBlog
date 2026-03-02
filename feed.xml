@@ -1,5 +1,185 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2026-03-02T11:48:11.049256+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/25</id><title>什么是 Adam？</title><updated>2026-03-02T11:48:11.824677+00:00</updated><content type="html"><![CDATA[<p><strong>Adam 是深度学习里最常用的优化算法之一。</strong></p>
+<feed xmlns="http://www.w3.org/2005/Atom"><id>https://github.com/lihe/MyGitBlog</id><title>RSS feed of lihe's MyGitBlog</title><updated>2026-03-02T12:45:52.125491+00:00</updated><link href="https://github.com/lihe/MyGitBlog"/><link href="https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml" rel="self"/><generator uri="https://lkiesow.github.io/python-feedgen" version="1.0.0">python-feedgen</generator><entry><id>https://github.com/lihe/MyGitBlog/issues/26</id><title>在推荐或 RAG 中如何完成亿级向量的快速检索？——IVFPQ</title><updated>2026-03-02T12:45:52.695743+00:00</updated><content type="html"><![CDATA[<h1><strong>一句话速答（面试先说）</strong></h1>
+<blockquote>
+<p>IVFPQ 是一种结合倒排索引（Inverted File）和乘积量化（Product Quantization）的近似最近邻搜索算法，通过“先分桶缩小搜索范围，再对向量压缩编码”来实现大规模向量的高效检索。</p>
+</blockquote>
+<hr />
+<h1><strong>一、为什么需要 IVFPQ？</strong></h1>
+<p>假设：</p>
+<ul>
+<li>有 1 亿条向量</li>
+<li>每条 768 维</li>
+<li>需要实时搜索最近邻</li>
+</ul>
+<p>如果用暴力搜索：</p>
+<p>O(ND)</p>
+<p>计算量极大。</p>
+<p>IVFPQ 目标是：</p>
+<blockquote>
+<p>在保证可接受精度下，大幅减少计算量和存储开销。</p>
+</blockquote>
+<hr />
+<h1><strong>二、IVFPQ 的两个核心组件</strong></h1>
+<p>IVFPQ = IVF + PQ</p>
+<hr />
+<h1><strong>第一部分：IVF（Inverted File）</strong></h1>
+<h2><strong>核心思想</strong></h2>
+<blockquote>
+<p>先用聚类把数据分成很多“桶”（cluster）</p>
+</blockquote>
+<p>步骤：</p>
+<ol>
+<li>对所有向量做 k-means 聚类</li>
+<li>得到 K 个中心（centroids）</li>
+<li>每个向量分配到最近的中心</li>
+</ol>
+<p>形成结构：</p>
+<pre><code>cluster 1 → 向量列表
+cluster 2 → 向量列表
+...
+</code></pre>
+<p>这就是“倒排索引”。</p>
+<hr />
+<h2><strong>查询时</strong></h2>
+<p>给定 query：</p>
+<ol>
+<li>找最近的 n 个 cluster</li>
+<li>只在这些 cluster 里搜索</li>
+</ol>
+<p>👉 搜索范围大幅缩小</p>
+<hr />
+<h1><strong>第二部分：PQ（Product Quantization）</strong></h1>
+<p>IVF 解决了“搜哪里”，</p>
+<p>PQ 解决了“怎么快算距离 + 怎么省内存”。</p>
+<hr />
+<h2><strong>PQ 核心思想</strong></h2>
+<p>把一个高维向量：</p>
+<p>$x \in \mathbb{R}^D$</p>
+<p>拆成：</p>
+<p>m 个子向量</p>
+<p>例如：</p>
+<ul>
+<li>D=768</li>
+<li>m=96</li>
+<li>每个子向量 8 维</li>
+</ul>
+<p>对每个子空间单独做 k-means（例如 256 个中心）</p>
+<p>于是：</p>
+<p>每个子向量只需要：</p>
+<pre><code>1 byte（0~255）
+</code></pre>
+<p>整个向量只需：</p>
+<pre><code>m bytes
+</code></pre>
+<p>比如：</p>
+<p>96 bytes 而不是 768 × 4 bytes</p>
+<p>👉 存储压缩 30 倍以上</p>
+<hr />
+<h1><strong>三、检索流程</strong></h1>
+<p>查询步骤：</p>
+<p>1️⃣ 找最近的几个 cluster（IVF）</p>
+<p>2️⃣ 对每个候选向量：</p>
+<ul>
+<li>
+<p>用 PQ 近似距离计算</p>
+</li>
+<li>
+<p>查表计算</p>
+<p>3️⃣ 选 TopK</p>
+</li>
+</ul>
+<hr />
+<h1><strong>四、为什么 PQ 距离计算很快？</strong></h1>
+<p>因为：</p>
+<ul>
+<li>子向量距离可以预先算好</li>
+<li>用查表方式加和</li>
+<li>不需要还原原始向量</li>
+</ul>
+<p>这叫：</p>
+<blockquote>
+<p>Asymmetric Distance Computation (ADC)</p>
+</blockquote>
+<hr />
+<h1><strong>五、IVFPQ 整体流程总结</strong></h1>
+<pre><code>构建阶段：
+    聚类 → 分桶
+    每个向量做 PQ 编码
+
+查询阶段：
+    找最近的 cluster
+    用 PQ 近似计算距离
+    排序返回
+</code></pre>
+<hr />
+<h1><strong>六、为什么 IVFPQ 能支持亿级数据？</strong></h1>
+<p>因为：</p>
+<ul>
+<li>不需要全量扫描</li>
+<li>向量被压缩成几十字节</li>
+<li>距离计算用查表</li>
+</ul>
+<p>时间复杂度大幅降低。</p>
+<hr />
+<h1><strong>七、优缺点</strong></h1>
+<h2><strong>优点</strong></h2>
+<ul>
+<li>存储压缩率高</li>
+<li>查询速度快</li>
+<li>支持大规模</li>
+</ul>
+<hr />
+<h2><strong>缺点</strong></h2>
+<ul>
+<li>精度损失</li>
+<li>参数调节复杂</li>
+<li>需要预训练聚类</li>
+</ul>
+<hr />
+<h1><strong>八、IVFPQ vs HNSW</strong></h1>
+<table>
+<thead>
+<tr>
+<th><strong>方法</strong></th>
+<th><strong>类型</strong></th>
+<th><strong>特点</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IVFPQ</td>
+<td>量化 + 分桶</td>
+<td>内存小</td>
+</tr>
+<tr>
+<td>HNSW</td>
+<td>图结构</td>
+<td>精度高</td>
+</tr>
+</tbody></table><p>通常：</p>
+<ul>
+<li>内存敏感 → IVFPQ</li>
+<li>高精度需求 → HNSW</li>
+</ul>
+<hr />
+<h1><strong>九、在 RAG 里的作用</strong></h1>
+<p>在 RAG 中：</p>
+<ul>
+<li>向量库可能百万/千万条文档</li>
+<li>需要快速召回</li>
+<li>常用 FAISS IVFPQ 或 Milvus 实现</li>
+</ul>
+<hr />
+<h1><strong>十、面试标准总结（建议背）</strong></h1>
+<blockquote>
+<p>IVFPQ 是一种结合倒排索引和乘积量化的近似最近邻搜索算法，通过先将向量分桶缩小搜索范围，再对向量进行压缩编码，实现大规模向量的高效存储和快速检索。</p>
+</blockquote>
+<hr />
+<h1><strong>一句更高级的总结</strong></h1>
+<blockquote>
+<p>IVFPQ 本质是“先粗筛，再压缩算”。</p>
+</blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/26"/><category term="面试"/><published>2026-03-02T12:45:17+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/25</id><title>什么是 Adam？</title><updated>2026-03-02T12:45:52.921881+00:00</updated><content type="html"><![CDATA[<p><strong>Adam 是深度学习里最常用的优化算法之一。</strong></p>
 <p>它的本质可以一句话概括：</p>
 <blockquote>
 <p>Adam = 带动量的 RMSProp + 偏置校正</p>
@@ -163,7 +343,7 @@
 <h1><strong>十三、面试级总结</strong></h1>
 <p>Adam 是一种结合动量和自适应学习率的优化算法，通过一阶矩估计控制更新方向，二阶矩估计调整每个参数的学习率，并通过偏置校正保证早期稳定性。它收敛快、调参简单，是大模型训练的主流优化器。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/25"/><category term="面试"/><published>2026-03-02T11:47:36+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/24</id><title>梯度下降算法中的学习率衰减策略</title><updated>2026-03-02T11:48:12.119964+00:00</updated><content type="html"><![CDATA[<h1><strong>一、为什么必须做学习率衰减？</strong></h1>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/25"/><category term="面试"/><published>2026-03-02T11:47:36+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/24</id><title>梯度下降算法中的学习率衰减策略</title><updated>2026-03-02T12:45:53.135934+00:00</updated><content type="html"><![CDATA[<h1><strong>一、为什么必须做学习率衰减？</strong></h1>
 <p>先回答核心问题：</p>
 <blockquote>
 <p>为什么不能一直用固定学习率？</p>
@@ -395,7 +575,7 @@
 <li>余弦衰减（大模型常用）</li>
 </ul>
 <p>并常结合 warmup 使用。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/24"/><category term="面试"/><published>2026-03-02T11:30:43+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/23</id><title>矩阵分解在大模型里的本质到底是什么？</title><updated>2026-03-02T11:48:12.384503+00:00</updated><content type="html"><![CDATA[<p>我会分成 6 个层次讲：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/24"/><category term="面试"/><published>2026-03-02T11:30:43+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/23</id><title>矩阵分解在大模型里的本质到底是什么？</title><updated>2026-03-02T12:45:53.379244+00:00</updated><content type="html"><![CDATA[<p>我会分成 6 个层次讲：</p>
 <ol>
 <li>数学本质</li>
 <li>为什么 Transformer 里天然“低秩”</li>
@@ -603,7 +783,7 @@
 <blockquote>
 <p>用低维结构近似高维表达</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/23"/><category term="面试"/><published>2026-03-02T07:01:59+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/22</id><title>普通卷积 vs 深度可分离卷积（Depthwise Separable Convolution）</title><updated>2026-03-02T11:48:12.631783+00:00</updated><content type="html"><![CDATA[<h1><strong>一、先理解：普通卷积在干什么？</strong></h1>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/23"/><category term="面试"/><published>2026-03-02T07:01:59+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/22</id><title>普通卷积 vs 深度可分离卷积（Depthwise Separable Convolution）</title><updated>2026-03-02T12:45:53.581403+00:00</updated><content type="html"><![CDATA[<h1><strong>一、先理解：普通卷积在干什么？</strong></h1>
 <p>假设输入：</p>
 <p>$H \times W \times C_{in}$</p>
 <p>比如：</p>
@@ -743,7 +923,7 @@
 <p>$空间 \times 通道 \text{ 一起建模}$</p>
 <p>深度可分离卷积是：</p>
 <p>空间建模 + 通道建模 \text{ 分开做}</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/22"/><category term="面试"/><published>2026-03-02T05:13:15+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/21</id><title>卷积的本质是什么？</title><updated>2026-03-02T11:48:12.882378+00:00</updated><content type="html"><![CDATA[<p>这题经常被问。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/22"/><category term="面试"/><published>2026-03-02T05:13:15+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/21</id><title>卷积的本质是什么？</title><updated>2026-03-02T12:45:53.771773+00:00</updated><content type="html"><![CDATA[<p>这题经常被问。</p>
 <hr />
 <h2><strong>1️⃣ 信号处理角度</strong></h2>
 <p>卷积是：</p>
@@ -889,7 +1069,7 @@
 <p>卷积是“平移等变”的：</p>
 <p>输入平移 → 输出也平移</p>
 <p>Pooling 带来“平移不变性”。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/21"/><category term="面试"/><published>2026-03-02T04:55:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/20</id><title>Pooling 是什么？作用是什么？</title><updated>2026-03-02T11:48:13.105970+00:00</updated><content type="html"><![CDATA[<h1><strong>一、Pooling 是什么？</strong></h1>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/21"/><category term="面试"/><published>2026-03-02T04:55:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/20</id><title>Pooling 是什么？作用是什么？</title><updated>2026-03-02T12:45:53.977283+00:00</updated><content type="html"><![CDATA[<h1><strong>一、Pooling 是什么？</strong></h1>
 <p><strong>Pooling（池化）</strong> 是 CNN 中的一种 <strong>下采样操作</strong>。</p>
 <p>它的作用是：</p>
 <blockquote>
@@ -981,7 +1161,7 @@
 <hr />
 <h1><strong>八、面试标准回答</strong></h1>
 <p>Pooling 是 CNN 中的一种下采样操作，通常通过 Max 或 Average 方式对局部区域进行聚合，从而减小特征图尺寸，降低计算量，同时增强平移不变性并扩大感受野。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/20"/><category term="面试"/><published>2026-03-02T04:48:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/19</id><title>Self-Attention、传统 Attention、双向 LSTM 的区别</title><updated>2026-03-02T11:48:13.350683+00:00</updated><content type="html"><![CDATA[<h1><strong>一、先讲最基础：Attention 是什么？</strong></h1>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/20"/><category term="面试"/><published>2026-03-02T04:48:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/19</id><title>Self-Attention、传统 Attention、双向 LSTM 的区别</title><updated>2026-03-02T12:45:54.214555+00:00</updated><content type="html"><![CDATA[<h1><strong>一、先讲最基础：Attention 是什么？</strong></h1>
 <p>Attention 的核心思想：</p>
 <blockquote>
 <p>在做当前预测时，不是只看当前状态，而是“有选择地关注其他位置”。</p>
@@ -1199,7 +1379,7 @@
 <blockquote>
 <p>Self-Attention 是“全局建模”</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/19"/><category term="面试"/><published>2026-03-02T03:03:16+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/18</id><title>Python 中浅拷贝（shallow copy）和深拷贝（deep copy）</title><updated>2026-03-02T11:48:13.624347+00:00</updated><content type="html"><![CDATA[<h1><strong>一、核心知识点</strong></h1>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/19"/><category term="面试"/><published>2026-03-02T03:03:16+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/18</id><title>Python 中浅拷贝（shallow copy）和深拷贝（deep copy）</title><updated>2026-03-02T12:45:54.442304+00:00</updated><content type="html"><![CDATA[<h1><strong>一、核心知识点</strong></h1>
 <p>Python 拷贝分三种：</p>
 <pre><code>a = b              # 赋值（引用）
 copy.copy(a)       # 浅拷贝
@@ -1365,7 +1545,7 @@ lst2 = copy.copy(lst)
 <blockquote>
 <p>深拷贝解决的是“共享引用问题”，而不是“值问题”。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/18"/><category term="面试"/><published>2026-03-01T13:30:04+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/17</id><title>多标签分类（Multi-label Classification）</title><updated>2026-03-02T11:48:14.010372+00:00</updated><content type="html"><![CDATA[<h1><strong>一、多标签分类的 Loss 设计</strong></h1>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/18"/><category term="面试"/><published>2026-03-01T13:30:04+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/17</id><title>多标签分类（Multi-label Classification）</title><updated>2026-03-02T12:45:54.657756+00:00</updated><content type="html"><![CDATA[<h1><strong>一、多标签分类的 Loss 设计</strong></h1>
 <h2><strong>1️⃣ 什么是多标签分类？</strong></h2>
 <ul>
 <li>一个样本可以对应 <strong>多个标签</strong></li>
@@ -1524,7 +1704,7 @@ lst2 = copy.copy(lst)
 <blockquote>
 <p>多标签 = 多个独立二分类 + 排序问题 + 不平衡优化</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/17"/><category term="面试"/><published>2026-03-01T08:35:08+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/16</id><title>从 SGD 到 Adam：深度学习优化算法的原理与工程实践</title><updated>2026-03-02T11:48:14.261567+00:00</updated><content type="html"><![CDATA[<p>在科研与工程中，<strong>大量问题都可以抽象为一个目标函数的最小化问题</strong>。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/17"/><category term="面试"/><published>2026-03-01T08:35:08+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/16</id><title>从 SGD 到 Adam：深度学习优化算法的原理与工程实践</title><updated>2026-03-02T12:45:54.879196+00:00</updated><content type="html"><![CDATA[<p>在科研与工程中，<strong>大量问题都可以抽象为一个目标函数的最小化问题</strong>。</p>
 <p>深度学习也不例外——模型训练的本质，就是在高维参数空间中寻找一个使损失函数最小的点。</p>
 <p>正如吴恩达老师常用的比喻：</p>
 <blockquote>
@@ -1692,7 +1872,7 @@ lst2 = copy.copy(lst)
 <hr />
 <h2><strong>九、一句话总结</strong></h2>
 <p>Adam 是一种通过估计梯度一阶矩和二阶矩来自适应调整学习率的优化器，结合了 Momentum 和 RMSProp 的优点，具有收敛快、稳定性好的特点。在实际工程中通常使用 AdamW，以正确实现权重衰减并获得更好的泛化性能。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/16"/><published>2025-12-22T14:14:15+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/15</id><title>SwiGLU 激活函数：为什么现代大语言模型的 FFN 都在用它？</title><updated>2026-03-02T11:48:14.517265+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 结构中，<strong>前馈网络（FFN）承担了几乎全部的非线性建模能力</strong>。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/16"/><published>2025-12-22T14:14:15+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/15</id><title>SwiGLU 激活函数：为什么现代大语言模型的 FFN 都在用它？</title><updated>2026-03-02T12:45:55.094750+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 结构中，<strong>前馈网络（FFN）承担了几乎全部的非线性建模能力</strong>。</p>
 <p>当模型规模从千万级走向百亿、千亿级后，激活函数不再只是“有没有非线性”的问题，而是：</p>
 <blockquote>
 <p><strong>能否在稳定训练的同时，提升表达能力与参数效率。</strong></p>
@@ -1882,7 +2062,7 @@ lst2 = copy.copy(lst)
 <blockquote>
 <p><strong>现代大语言模型的 FFN，基本都采用 SwiGLU 或其变体。</strong></p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/15"/><category term="Transformer"/><published>2025-12-17T07:37:14+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/14</id><title>WordPiece Tokenization：从概率视角理解子词分词算法</title><updated>2026-03-02T11:48:14.785641+00:00</updated><content type="html"><![CDATA[<p>在大语言模型出现之前，<strong>Tokenizer 的设计</strong>就已经深刻影响着模型的上限。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/15"/><category term="Transformer"/><published>2025-12-17T07:37:14+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/14</id><title>WordPiece Tokenization：从概率视角理解子词分词算法</title><updated>2026-03-02T12:45:55.410947+00:00</updated><content type="html"><![CDATA[<p>在大语言模型出现之前，<strong>Tokenizer 的设计</strong>就已经深刻影响着模型的上限。</p>
 <p>WordPiece，正是子词分词算法发展史中一个<strong>非常关键、但常被简化理解的节点</strong>。</p>
 <p>它不仅仅是“BERT 用的分词器”，而是一种<strong>明确以语言模型概率为目标函数的子词学习方法</strong>。</p>
 <hr />
@@ -2081,7 +2261,7 @@ lst2 = copy.copy(lst)
 <hr />
 <h2><strong>最终总结</strong></h2>
 <p>WordPiece 是一种基于语言模型概率的子词分词算法，通过在训练阶段选择能最大化语料整体似然的子词合并方式，在词表规模与 OOV 问题之间取得平衡。它生成的子词通常具有更稳定的语言学意义，被广泛应用于 BERT 等模型中。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/14"/><published>2025-12-16T03:27:46+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/13</id><title>RMSNorm：为什么大语言模型开始放弃 LayerNorm？</title><updated>2026-03-02T11:48:15.030013+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总结</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/14"/><published>2025-12-16T03:27:46+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/13</id><title>RMSNorm：为什么大语言模型开始放弃 LayerNorm？</title><updated>2026-03-02T12:45:55.623951+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总结</strong></h2>
 <p><strong>RMSNorm 是一种不做均值中心化、只按均方根缩放特征向量的归一化方法，相比 LayerNorm 计算更简单、参数更少、数值更稳定，因此在深层 Transformer 和大语言模型中更合适。</strong></p>
 <p>关键词：</p>
 <ul>
@@ -2227,7 +2407,7 @@ x → Norm → FFN → + x
 <hr />
 <h2><strong>最终总结</strong></h2>
 <p>RMSNorm 是一种简化的归一化方法，只通过均方根对特征向量进行尺度归一化，不进行均值中心化。相比 LayerNorm，它计算更高效、参数更少，并在深层 Transformer 和大语言模型中表现出更好的数值稳定性，因此逐渐成为 LLM 架构中的标准选择。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/13"/><category term="Transformer"/><published>2025-12-16T02:35:23+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/12</id><title>vLLM：为大模型在线推理而生的高性能引擎</title><updated>2026-03-02T11:48:15.301504+00:00</updated><content type="html"><![CDATA[<p>在真实的线上大模型服务中，推理瓶颈往往并不来自模型算力，而是来自<strong>显存管理与并发调度</strong>。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/13"/><category term="Transformer"/><published>2025-12-16T02:35:23+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/12</id><title>vLLM：为大模型在线推理而生的高性能引擎</title><updated>2026-03-02T12:45:55.834312+00:00</updated><content type="html"><![CDATA[<p>在真实的线上大模型服务中，推理瓶颈往往并不来自模型算力，而是来自<strong>显存管理与并发调度</strong>。</p>
 <p>vLLM 正是为解决这一问题而诞生的推理引擎。</p>
 <p>它并不是对 Transformer 结构的改写，而是一次<strong>面向系统层的工程重构</strong>。</p>
 <hr />
@@ -2486,7 +2666,7 @@ x → Norm → FFN → + x
 <p>vLLM 是一个为大模型在线推理而设计的高性能引擎，其核心创新在于 <strong>Paged KV Cache</strong> 和 <strong>Continuous Batching</strong>。</p>
 <p>它通过操作系统级的显存管理方式和动态调度机制，解决了传统 Transformer 推理在并发、显存碎片和吞吐上的根本瓶颈，显著提升了 GPU 利用率和系统整体性能。</p>
 <p><strong>vLLM 的价值不在模型，而在系统。</strong></p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/12"/><category term="Transformer"/><published>2025-12-14T15:15:29+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/11</id><title>什么是 KV Cache？</title><updated>2026-03-02T11:48:15.584369+00:00</updated><content type="html"><![CDATA[<p>在大语言模型的推理阶段，**KV Cache（Key-Value Cache）**几乎是不可或缺的基础机制。无论是 GPT、LLaMA、Qwen，还是各类推理框架（Transformers、vLLM、TensorRT-LLM），KV Cache 都直接决定了生成速度、显存占用以及系统吞吐能力。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/12"/><category term="Transformer"/><published>2025-12-14T15:15:29+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/11</id><title>什么是 KV Cache？</title><updated>2026-03-02T12:45:56.051427+00:00</updated><content type="html"><![CDATA[<p>在大语言模型的推理阶段，**KV Cache（Key-Value Cache）**几乎是不可或缺的基础机制。无论是 GPT、LLaMA、Qwen，还是各类推理框架（Transformers、vLLM、TensorRT-LLM），KV Cache 都直接决定了生成速度、显存占用以及系统吞吐能力。</p>
 <p>它并不是一个“模型结构创新”，而是一个<strong>严格由自回归推理范式推导出来的工程必然</strong>。</p>
 <hr />
 <h2><strong>一、KV Cache 要解决的根本问题</strong></h2>
@@ -2690,7 +2870,7 @@ x → Norm → FFN → + x
 <p>KV Cache 是自回归 Transformer 推理中的核心优化机制，通过缓存历史 token 的 Key 和 Value，避免在每一步生成中重复计算注意力，使推理复杂度从近似 $O(t^2)$ 降为 $O(t)$。</p>
 <p>其代价是显存占用随上下文长度线性增长，因此在实际系统中通常会结合 MQA/GQA、Paged Cache、Offloading 等技术进行优化。</p>
 <p>KV Cache 并不是“可选项”，而是<strong>现代大模型推理能够落地的前提条件之一</strong>。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/11"/><category term="Transformer"/><published>2025-12-14T14:35:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2026-03-02T11:48:15.873024+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/11"/><category term="Transformer"/><published>2025-12-14T14:35:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/10</id><title>Transformer 在哪里做了权重共享？</title><updated>2026-03-02T12:45:56.273460+00:00</updated><content type="html"><![CDATA[<p>权重共享（Weight Sharing）是 Transformer 架构中一个<strong>看似基础、实则非常关键</strong>的设计选择。它直接关系到模型的参数效率、泛化能力以及对任意长度序列的支持能力。</p>
 <p>不同于“层与层之间共享参数”的直觉理解，Transformer 的权重共享主要发生在<strong>位置维度和词表维度</strong>，而不是深度维度。理解这一点，是理解 Transformer 架构设计哲学的重要一步。</p>
 <hr />
 <h2><strong>一、什么是权重共享</strong></h2>
@@ -2845,7 +3025,7 @@ x → Norm → FFN → + x
 <p>Transformer 的权重共享并不 hookup 在“层”这个维度上，而是集中体现在<strong>位置维度和词表维度</strong>。</p>
 <p>通过在所有 token 位置上共享 Attention 和 FFN 的参数，Transformer 实现了类似卷积的平移不变性，并得以支持任意长度序列建模；而通过共享输入与输出 embedding，则进一步提升了参数效率与语义一致性。</p>
 <p>这种共享策略并非工程折中，而是由序列建模与注意力机制的本质共同决定的结构选择。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2026-03-02T11:48:16.139180+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/10"/><category term="Transformer"/><published>2025-12-14T13:58:51+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/9</id><title>混合精度训练时，哪些参数应该使用高精度，哪些该使用低精度？</title><updated>2026-03-02T12:45:56.481003+00:00</updated><content type="html"><![CDATA[<h2><strong>一句话总原则</strong></h2>
 <blockquote>
 <p><strong>参与梯度累积、数值范围敏感、长期状态的量 → 高精度</strong></p>
 </blockquote>
@@ -3112,7 +3292,7 @@ x → Norm → FFN → + x
 <blockquote>
 <p>混合精度训练的核心不是“能不能用低精度”，而是<strong>绝不让任何会被长期累积、或作为数值基准的变量使用低精度</strong>；前向计算尽量低精度，反向更新与状态一律高精度。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2026-03-02T11:48:16.405577+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/9"/><category term="微调"/><published>2025-12-14T13:21:44+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/8</id><title>为什么 Transformer 使用 LayerNorm 而不是 BatchNorm？</title><updated>2026-03-02T12:45:56.717037+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 的设计中，<strong>归一化方式并不是一个可随意替换的工程细节，而是由模型结构与训练范式共同决定的核心选择</strong>。理解这一点，有助于从根本上把握 Transformer 与传统卷积网络在建模假设上的差异。</p>
 <h2><strong>一句话结论</strong></h2>
 <p>Transformer 使用 <strong>LayerNorm（层归一化）而不是 BatchNorm（批归一化）</strong>，是因为 Transformer 的计算是逐 token、支持变长序列，并高度依赖自注意力与自回归生成；而 BatchNorm 对 batch 维度和样本分布有强假设，在这些场景下不成立，甚至会破坏模型行为。</p>
 <hr />
@@ -3242,7 +3422,7 @@ x → Norm → FFN → + x
 <hr />
 <h2><strong>总结</strong></h2>
 <p>Transformer 使用 LayerNorm 而不是 BatchNorm，并非经验选择，而是由其逐 token、自回归、变长序列和注意力驱动的计算范式所决定。LayerNorm 在特征维度上对单个样本独立归一化，保证了训练与推理的一致性、数值稳定性和模型行为的可控性，因此成为 Transformer 架构中的标准归一化方案。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2026-03-02T11:48:16.683532+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/8"/><category term="Transformer"/><published>2025-12-14T10:30:34+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/7</id><title>Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法</title><updated>2026-03-02T12:45:56.925122+00:00</updated><content type="html"><![CDATA[<p>随着预训练语言模型规模不断扩大，全参数微调在计算成本、存储开销和稳定性方面逐渐暴露出局限性。在此背景下，一类以<strong>冻结模型参数、仅引入少量可训练模块</strong>为特征的参数高效微调方法（PEFT）逐渐成为主流方向。Prefix-Tuning 正是其中具有代表性的一种方法。</p>
 <p>Prefix-Tuning 最早由 Li 和 Liang 在 2021 年提出，其核心思想是在不修改模型权重的前提下，通过在 Transformer 的注意力机制中引入可学习的前缀向量，引导模型在生成阶段表现出符合下游任务需求的行为。</p>
 <hr />
 <h2><strong>方法动机与提出背景</strong></h2>
@@ -3327,7 +3507,7 @@ x → Norm → FFN → + x
 <h2><strong>总结</strong></h2>
 <p>Prefix-Tuning 通过在 Transformer 每一层注意力机制中引入可学习的前缀向量，在冻结模型参数的前提下，实现了对模型生成行为的有效引导。该方法在参数效率、稳定性与控制能力之间提供了一种折中方案，是参数高效微调技术体系中的重要组成部分。</p>
 <p>在现代大模型应用中，Prefix-Tuning 常与其他 PEFT 方法共同构成一条从“提示级控制”到“权重级适配”的连续技术路径。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2026-03-02T11:48:16.940451+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/7"/><category term="微调"/><published>2025-12-14T04:18:45+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/6</id><title>Transformer 中 FFN 是做什么的？——为什么注意力之外还需要前馈网络</title><updated>2026-03-02T12:45:57.137373+00:00</updated><content type="html"><![CDATA[<p>在 Transformer 架构中，自注意力机制（Self-Attention）往往更容易被关注，但真正决定模型表达能力上限的核心模块之一，是每一层中与注意力并列存在的前馈神经网络（Feed-Forward Network, FFN）。FFN 并非简单的附属组件，而是 Transformer 能够建模复杂语义与非线性关系的关键所在。</p>
 <img width="1225" height="384" alt="Image" src="https://github.com/user-attachments/assets/ebfb108f-344b-4773-977e-d0045407e3be" />
 <hr />
 <h2><strong>注意力与 FFN 的职责分工</strong></h2>
@@ -3403,7 +3583,7 @@ x → Norm → FFN → + x
 <h2><strong>总结</strong></h2>
 <p>在 Transformer 架构中，前馈神经网络承担着对每个 token 表示进行深度语义加工的职责。自注意力机制负责跨 token 的信息聚合，而 FFN 通过升维、非线性激活与降维，使模型具备建模复杂语义关系的能力。</p>
 <p>正是这种“注意力负责结构，FFN 负责计算”的分工，使 Transformer 成为一种既具全局建模能力、又具强表达能力的通用序列建模架构。</p>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2026-03-02T11:48:17.185808+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/6"/><category term="Transformer"/><published>2025-12-13T16:20:47+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/5</id><title>P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析</title><updated>2026-03-02T12:45:57.320613+00:00</updated><content type="html"><![CDATA[<h2><strong>一、方法提出背景</strong></h2>
 <p>在大语言模型的下游任务适配中，Prompt 的构造方式对模型性能具有决定性影响。以 GPT-3 为代表的 In-Context Learning 依赖人工设计的离散模板，但这种方式存在明显局限：</p>
 <ul>
 <li>模板对措辞、顺序和示例极其敏感</li>
@@ -3529,7 +3709,7 @@ x → Norm → FFN → + x
 </ul>
 <p>P-Tuning v2 在多个模型规模与任务类型中展现出与全参数微调相媲美的性能，可作为参数高效微调方法的重要基线之一。</p>
 <hr />
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2026-03-02T11:48:17.419713+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/5"/><category term="微调"/><published>2025-12-13T11:33:50+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/4</id><title>GRPO 详解：DeepSeek-R1/DeepSeekMath 为什么用它替代 PPO？</title><updated>2026-03-02T12:45:57.547217+00:00</updated><content type="html"><![CDATA[<p>过去一年，“推理模型（Reasoning LLM）”的对齐路线几乎被反复验证了一件事：</p>
 <p><strong>SFT 只是起点，真正把推理能力拉起来的，往往是强化学习阶段。</strong></p>
 <p>而在 DeepSeek-R1 相关讨论里，GRPO（Group Relative Policy Optimization）频繁出现，原因并不玄学——它来自 DeepSeek 之前的工作《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》，并在推理/可验证任务上表现出很强的工程合理性。</p>
 <p>这篇文章总结一条完整逻辑链：</p>
@@ -3728,7 +3908,7 @@ x → Norm → FFN → + x
 <blockquote>
 <p>这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。</p>
 </blockquote>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2026-03-02T11:48:17.685755+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/4"/><category term="PPO"/><published>2025-12-13T07:30:41+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/3</id><title>QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代</title><updated>2026-03-02T12:45:57.781515+00:00</updated><content type="html"><![CDATA[<h2><strong>前言：QLoRA 为什么值得被认真理解？</strong></h2>
 <p>QLoRA 的作者 <strong>Tim Dettmers</strong>，是模型量化领域的核心人物之一，同时也深度参与了 <strong>BLOOM</strong> 等大模型的工程化落地。</p>
 <p>模型量化（Quantization）和参数高效微调（PEFT）看似属于两个方向，但它们背后有一个共同目标：</p>
 <blockquote>
@@ -4117,7 +4297,7 @@ x → Norm → FFN → + x
 <li>[1] QLoRA: Efficient Finetuning of Quantized LLMs</li>
 <li>[2] LoRA: Low-Rank Adaptation of Large Language Models</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2026-03-02T11:48:18.002127+00:00</updated><content type="html"><![CDATA[<blockquote>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/3"/><category term="LoRA"/><published>2025-12-13T06:57:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/2</id><title>从 Function Calling 到 MCP：大模型如何真正接入真实世界？</title><updated>2026-03-02T12:45:58.014297+00:00</updated><content type="html"><![CDATA[<blockquote>
 <p>当我们谈论 AI Agent、Copilot、企业级智能系统时，真正的分水岭早已不在模型参数量，而在一个更底层的问题上：</p>
 </blockquote>
 <blockquote>
@@ -4387,7 +4567,7 @@ MCP Server
 <li>Function Calling 更像是“动作接口”</li>
 <li>MCP 更接近“模型的操作系统层”</li>
 </ul>
-]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2026-03-02T11:48:18.264352+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
+]]></content><link href="https://github.com/lihe/MyGitBlog/issues/2"/><category term="MCP"/><published>2025-12-13T06:24:38+00:00</published></entry><entry><id>https://github.com/lihe/MyGitBlog/issues/1</id><title>从 RAG 到 GraphRAG，再到 LightRAG</title><updated>2026-03-02T12:45:58.227649+00:00</updated><content type="html"><![CDATA[<h2><strong>引言：当 RAG 不再只是“找得到”</strong></h2>
 <p>检索增强生成（Retrieval-Augmented Generation, RAG）已经成为 LLM 应用的事实标准。</p>
 <p>它通过“<strong>先检索、再生成</strong>”的方式，在一定程度上缓解了大模型的幻觉问题。</p>
 <p>但随着应用场景从<strong>局部事实问答</strong>走向<strong>跨文档推理、全局总结与复杂关系理解</strong>，一个问题逐渐显现：</p>
