@@ -494,3 +494,8 @@ $FL(p) = -(1-p)^\gamma \log p$
 
 
 > 多标签 = 多个独立二分类 + 排序问题 + 不平衡优化
+
+
+---
+
+https://blog.csdn.net/tsyccnh/article/details/79163834
