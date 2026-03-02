@@ -13,11 +13,11 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
+- [梯度下降算法中的学习率衰减策略](https://github.com/lihe/MyGitBlog/issues/24)--2026-03-02
 - [矩阵分解在大模型里的本质到底是什么？](https://github.com/lihe/MyGitBlog/issues/23)--2026-03-02
 - [普通卷积 vs 深度可分离卷积（Depthwise Separable Convolution）](https://github.com/lihe/MyGitBlog/issues/22)--2026-03-02
 - [卷积的本质是什么？](https://github.com/lihe/MyGitBlog/issues/21)--2026-03-02
 - [Pooling 是什么？作用是什么？](https://github.com/lihe/MyGitBlog/issues/20)--2026-03-02
-- [Self-Attention、传统 Attention、双向 LSTM 的区别](https://github.com/lihe/MyGitBlog/issues/19)--2026-03-02
 ## LoRA
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
 ## MCP
@@ -43,13 +43,14 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 - [Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法](https://github.com/lihe/MyGitBlog/issues/7)--2025-12-14
 - [P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析](https://github.com/lihe/MyGitBlog/issues/5)--2025-12-13
 ## 面试
+- [梯度下降算法中的学习率衰减策略](https://github.com/lihe/MyGitBlog/issues/24)--2026-03-02
 - [矩阵分解在大模型里的本质到底是什么？](https://github.com/lihe/MyGitBlog/issues/23)--2026-03-02
 - [普通卷积 vs 深度可分离卷积（Depthwise Separable Convolution）](https://github.com/lihe/MyGitBlog/issues/22)--2026-03-02
 - [卷积的本质是什么？](https://github.com/lihe/MyGitBlog/issues/21)--2026-03-02
 - [Pooling 是什么？作用是什么？](https://github.com/lihe/MyGitBlog/issues/20)--2026-03-02
-- [Self-Attention、传统 Attention、双向 LSTM 的区别](https://github.com/lihe/MyGitBlog/issues/19)--2026-03-02
 <details><summary>显示更多</summary>
 
+- [Self-Attention、传统 Attention、双向 LSTM 的区别](https://github.com/lihe/MyGitBlog/issues/19)--2026-03-02
 - [Python 中浅拷贝（shallow copy）和深拷贝（deep copy）](https://github.com/lihe/MyGitBlog/issues/18)--2026-03-01
 - [多标签分类（Multi-label Classification）](https://github.com/lihe/MyGitBlog/issues/17)--2026-03-01
 </details>
