@@ -620,3 +620,8 @@ GRPO 也不是银弹，也有风险：
 
 > 这也解释了为什么 GRPO 这类稳定分布的 RL 方法，在推理模型时代特别吃香。
 
+
+
+---
+
+https://www.zhihu.com/tardis/zm/art/717010380?source_id=1003
