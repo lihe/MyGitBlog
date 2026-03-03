@@ -13,11 +13,11 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
+- [Gradient Scaling 可以解决 FP16 在训练中会出现的问题](https://github.com/lihe/MyGitBlog/issues/37)--2026-03-03
 - [如何从 0 到 1 设计一个工业级大模型预训练流程？](https://github.com/lihe/MyGitBlog/issues/36)--2026-03-03
 - [解释模型并行的几种实现方式](https://github.com/lihe/MyGitBlog/issues/35)--2026-03-03
 - [什么是模型蒸馏？如何实现？](https://github.com/lihe/MyGitBlog/issues/34)--2026-03-03
 - [比较GPT、BERT和T5的架构差异](https://github.com/lihe/MyGitBlog/issues/33)--2026-03-03
-- [解释ZeRO优化器的三个stage](https://github.com/lihe/MyGitBlog/issues/32)--2026-03-03
 ## LoRA
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
 ## MCP
@@ -43,13 +43,14 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 - [Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法](https://github.com/lihe/MyGitBlog/issues/7)--2025-12-14
 - [P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析](https://github.com/lihe/MyGitBlog/issues/5)--2025-12-13
 ## 面试
+- [Gradient Scaling 可以解决 FP16 在训练中会出现的问题](https://github.com/lihe/MyGitBlog/issues/37)--2026-03-03
 - [如何从 0 到 1 设计一个工业级大模型预训练流程？](https://github.com/lihe/MyGitBlog/issues/36)--2026-03-03
 - [解释模型并行的几种实现方式](https://github.com/lihe/MyGitBlog/issues/35)--2026-03-03
 - [什么是模型蒸馏？如何实现？](https://github.com/lihe/MyGitBlog/issues/34)--2026-03-03
 - [比较GPT、BERT和T5的架构差异](https://github.com/lihe/MyGitBlog/issues/33)--2026-03-03
-- [解释ZeRO优化器的三个stage](https://github.com/lihe/MyGitBlog/issues/32)--2026-03-03
 <details><summary>显示更多</summary>
 
+- [解释ZeRO优化器的三个stage](https://github.com/lihe/MyGitBlog/issues/32)--2026-03-03
 - [如何设计一个适合大模型训练的优化器？](https://github.com/lihe/MyGitBlog/issues/31)--2026-03-03
 - [Dropout在大模型中的应用和调整策略](https://github.com/lihe/MyGitBlog/issues/30)--2026-03-03
 - [解释Checkpointing技术及其内存优化原理](https://github.com/lihe/MyGitBlog/issues/29)--2026-03-03
