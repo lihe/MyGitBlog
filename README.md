@@ -13,11 +13,11 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
+- [RLHF（Reinforcement Learning from Human Feedback，人类反馈强化学习） 的完整流程](https://github.com/lihe/MyGitBlog/issues/46)--2026-03-05
 - [真实 AI 公司（尤其是 LLM / RAG 系统）的一整条请求链路](https://github.com/lihe/MyGitBlog/issues/45)--2026-03-05
 - [BM25 和 BGE-M3](https://github.com/lihe/MyGitBlog/issues/44)--2026-03-05
 - [什么是 Reranker（Cross-Encoder）？](https://github.com/lihe/MyGitBlog/issues/43)--2026-03-05
 - [交叉熵是怎么计算的？](https://github.com/lihe/MyGitBlog/issues/42)--2026-03-05
-- [怎么把 FP32 参数转换成 INT8？](https://github.com/lihe/MyGitBlog/issues/41)--2026-03-05
 ## LoRA
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
 ## MCP
@@ -43,13 +43,14 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 - [Prefix-Tuning：在注意力机制中引入可学习前缀的参数高效微调方法](https://github.com/lihe/MyGitBlog/issues/7)--2025-12-14
 - [P-Tuning 与 P-Tuning v2：参数高效 Prompt 微调方法解析](https://github.com/lihe/MyGitBlog/issues/5)--2025-12-13
 ## 面试
+- [RLHF（Reinforcement Learning from Human Feedback，人类反馈强化学习） 的完整流程](https://github.com/lihe/MyGitBlog/issues/46)--2026-03-05
 - [真实 AI 公司（尤其是 LLM / RAG 系统）的一整条请求链路](https://github.com/lihe/MyGitBlog/issues/45)--2026-03-05
 - [BM25 和 BGE-M3](https://github.com/lihe/MyGitBlog/issues/44)--2026-03-05
 - [什么是 Reranker（Cross-Encoder）？](https://github.com/lihe/MyGitBlog/issues/43)--2026-03-05
 - [交叉熵是怎么计算的？](https://github.com/lihe/MyGitBlog/issues/42)--2026-03-05
-- [怎么把 FP32 参数转换成 INT8？](https://github.com/lihe/MyGitBlog/issues/41)--2026-03-05
 <details><summary>显示更多</summary>
 
+- [怎么把 FP32 参数转换成 INT8？](https://github.com/lihe/MyGitBlog/issues/41)--2026-03-05
 - [大语言模型的评估指标有哪些？](https://github.com/lihe/MyGitBlog/issues/40)--2026-03-05
 - [大模型训练中的稳定性问题及解决方案](https://github.com/lihe/MyGitBlog/issues/39)--2026-03-03
 - [如何监控和诊断大模型训练过程？](https://github.com/lihe/MyGitBlog/issues/38)--2026-03-03
