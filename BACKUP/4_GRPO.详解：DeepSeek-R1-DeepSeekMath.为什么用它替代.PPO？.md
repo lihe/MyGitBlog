@@ -625,3 +625,7 @@ GRPO 也不是银弹，也有风险：
 ---
 
 https://www.zhihu.com/tardis/zm/art/717010380?source_id=1003
+
+---
+
+https://zhuanlan.zhihu.com/p/677607581
