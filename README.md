@@ -13,11 +13,11 @@ My personal blog using issues and GitHub Actions (参考[yihong](https://github.
 [RSS Feed](https://raw.githubusercontent.com/lihe/MyGitBlog/master/feed.xml)
 
 ## 最近更新
+- [LeetCode 21：合并两个有序链表](https://github.com/lihe/MyGitBlog/issues/48)--2026-03-12
 - [什么是Operator Fusion（算子融合）？](https://github.com/lihe/MyGitBlog/issues/47)--2026-03-05
 - [RLHF（Reinforcement Learning from Human Feedback，人类反馈强化学习） 的完整流程](https://github.com/lihe/MyGitBlog/issues/46)--2026-03-05
 - [真实 AI 公司（尤其是 LLM / RAG 系统）的一整条请求链路](https://github.com/lihe/MyGitBlog/issues/45)--2026-03-05
 - [BM25 和 BGE-M3](https://github.com/lihe/MyGitBlog/issues/44)--2026-03-05
-- [什么是 Reranker（Cross-Encoder）？](https://github.com/lihe/MyGitBlog/issues/43)--2026-03-05
 ## LoRA
 - [QLoRA 深度解析：用 4bit 量化，把 70B 大模型拉进单卡时代](https://github.com/lihe/MyGitBlog/issues/3)--2025-12-13
 ## MCP
